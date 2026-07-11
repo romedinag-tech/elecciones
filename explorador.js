@@ -1,5 +1,5 @@
 // Explorador territorial electoral — workbench: nivel → unidad → módulos. Elección elegida DENTRO de cada módulo.
-const V='13';
+const V='14';
 const LEVELS=[{k:'nacional',lbl:'Nacional'},{k:'region',lbl:'Región'},{k:'distrito',lbl:'Distrito'},
   {k:'circ_senatorial',lbl:'Circ. sen.'},{k:'metro',lbl:'Z. metro'},{k:'comuna',lbl:'Comuna'}];
 const REG_ORDER=[15,1,2,3,4,5,13,6,7,16,8,9,14,10,11,12];
@@ -75,11 +75,11 @@ function selectUnit(id,btn){ unitId=id;
   document.getElementById('placeholder').style.display='none';
   document.getElementById('tabs').style.display='flex'; renderTabs(); showTab(tab); }
 function showPlaceholder(html){ unitId=null; document.getElementById('tabs').style.display='none';
-  ['panelC','panelT'].forEach(p=>document.getElementById(p).classList.remove('show'));
+  ['panelC','panelD','panelT'].forEach(p=>document.getElementById(p).classList.remove('show'));
   const ph=document.getElementById('placeholder'); ph.style.display='flex'; ph.querySelector('.ph-card p').innerHTML=html; }
 
 const MODS=[{k:'C',lbl:'Características principales'},{k:'T',lbl:'Análisis territorial'},
-  {k:'D',lbl:'Tendencial',soon:1},{k:'R',lbl:'Drivers',soon:1},{k:'P',lbl:'Predictivo',soon:1}];
+  {k:'D',lbl:'Análisis tendencial'},{k:'R',lbl:'Drivers',soon:1},{k:'P',lbl:'Predictivo',soon:1}];
 function renderTabs(){ const t=document.getElementById('tabs'); t.innerHTML='';
   MODS.forEach(M=>{ const b=document.createElement('button'); b.textContent=M.lbl+(M.soon?' ·':'');
     b.className='tabbtn'+(M.k===tab?' on':'')+(M.soon?' soon':''); if(M.soon){ b.title='Próximamente'; b.disabled=true; }
@@ -88,9 +88,11 @@ function showTab(t){ tab=t;
   document.querySelectorAll('#tabs .tabbtn').forEach(b=>b.classList.toggle('on', b.textContent.startsWith(MODS.find(m=>m.k===t).lbl)));
   document.getElementById('panelC').classList.toggle('show', t==='C');
   document.getElementById('panelT').classList.toggle('show', t==='T');
+  document.getElementById('panelD').classList.toggle('show', t==='D');
   if(t==='C') renderC();
   else if(t==='T'){ ensureMap(); document.getElementById('elecBtn').textContent=elecInfo(elecSel).label+' · '+elecInfo(elecSel).year;
-    loadTerr(elecSel).then(()=>{ buildColorby(); setTimeout(()=>{ map.invalidateSize(); renderT(); },30); }); } }
+    loadTerr(elecSel).then(()=>{ buildColorby(); setTimeout(()=>{ map.invalidateSize(); renderT(); },30); }); }
+  else if(t==='D') renderD(); }
 
 // =================== MÓDULO Características ===================
 function fmtN(v){ return v==null?'—':Math.round(v).toLocaleString('es-CL'); }
@@ -228,3 +230,94 @@ function renderLeg(){ const el=document.getElementById('leg2');
   } else { const r=seqRange||{}; const suf=colorby==='margen'?'pp':'%'; const f=v=>v==null?'—':v.toFixed(colorby==='part'?0:1)+suf;
     el.innerHTML=`<span class="lg" style="width:100%;font-weight:700;color:#333">${colLabel()}</span>`+
       SEQ.map((c,i)=>`<span class="lg"><i style="background:${c}"></i>${i===0?f(r.lo):i===4?f(r.hi):''}</span>`).join(''); } }
+
+// =================== MÓDULO Análisis tendencial ===================
+const TSERIES=[{k:'presidencial_1v',lbl:'Presidencial'},{k:'diputados',lbl:'Diputados'},{k:'senadores',lbl:'Senadores'},
+  {k:'alcaldes',lbl:'Alcaldes'},{k:'gobernadores_1v',lbl:'Gobernadores'},{k:'cores',lbl:'Cons. Reg.'},{k:'constitucional',lbl:'Constitucional'}];
+const BLOC_ORDER=['Izquierda','Centro-izquierda','Centro','Populista/Otro','Centro-derecha','Derecha','Derecha radical'];
+let TEND={}, TENDNAC=null, tserie='presidencial_1v'; const TENDCACHE={};
+function ensureTend(){ const need=[];
+  if(!TENDCACHE[level]) need.push(fetch('data/tendencia/'+level+'.json?v='+V).then(r=>r.json()).then(d=>{TENDCACHE[level]=d;}));
+  if(!TENDNAC) need.push(fetch('data/tendencia/nacional.json?v='+V).then(r=>r.json()).then(d=>{TENDNAC=d;}));
+  return Promise.all(need).then(()=>{ TEND=TENDCACHE; }); }
+function famMatch(k){ return k==='constitucional'? e=>/convencion|consejo|plebiscito/.test(e) : e=>e.includes(k); }
+function famPoints(ser,k){ if(!ser) return []; const m=famMatch(k);
+  return Object.keys(ser).filter(m).sort().map(e=>Object.assign({e,y:ser[e].y},ser[e])); }
+function renderD(){ const p=document.getElementById('panelD');
+  p.innerHTML='<div class="mod-pad">Cargando series…</div>';
+  ensureTend().then(()=>{
+    const ser=(TENDCACHE[level]||{})[unitId]; const o=(KPI[level]||{})[unitId]||{};
+    // qué series (tipos) existen para esta unidad
+    const avail=TSERIES.filter(s=>famPoints(ser,s.k).length>0);
+    if(!avail.find(s=>s.k===tserie)) tserie=(avail[0]||{k:'presidencial_1v'}).k;
+    let h=`<div class="mod-pad"><div class="c-head"><div><div class="c-name">${cap(o.nombre||'')}</div>
+      <div class="c-meta">Evolución electoral · ${LEVELS.find(x=>x.k===level).lbl}</div></div></div>`;
+    h+=`<div class="td-fam">`+avail.map(s=>`<button class="td-fbtn${s.k===tserie?' on':''}" data-k="${s.k}">${s.lbl}</button>`).join('')+`</div>`;
+    h+=`<div id="td-charts"></div></div>`;
+    p.innerHTML=h;
+    p.querySelectorAll('.td-fbtn').forEach(b=>b.onclick=()=>{ tserie=b.dataset.k; renderD(); });
+    drawTendCharts(ser);
+  }); }
+function drawTendCharts(ser){ const box=document.getElementById('td-charts'); if(!box) return;
+  const pts=famPoints(ser,tserie); const nacpts=famPoints(TENDNAC&&TENDNAC.CL,tserie);
+  if(pts.length<1){ box.innerHTML='<div class="td-empty">Sin datos de esta elección para la unidad.</div>'; return; }
+  const isNac=level==='nacional';
+  const divider=firstObl(pts);
+  let h='';
+  // 1) Participación
+  h+=chartBlock('Participación', 'Voto voluntario hasta 2021 · obligatorio desde 2022',
+     lineSVG(pts.map(p=>({x:p.y,v:p.part})), {ymin:0,ymax:100,color:'#16365a',suf:'%',divider,
+       bench:isNac?null:nacpts.map(p=>({x:p.y,v:p.part})), benchLbl:'País'}));
+  // 2) Eje izquierda-derecha
+  h+=chartBlock('Eje izquierda–derecha (0–10)', 'Media ponderada por votos; ↑ = más a la derecha',
+     lineSVG(pts.map(p=>({x:p.y,v:p.eje})), {ymin:0,ymax:10,color:'#C55A11',suf:'',dec:2,
+       bench:isNac?null:nacpts.map(p=>({x:p.y,v:p.eje})), benchLbl:'País'}));
+  // 3) Share por bloque
+  h+=chartBlock('Composición por bloque', 'Porcentaje de votos válidos por bloque ideológico', stackSVG(pts));
+  // 4) Tabla resumen (NEP + volatilidad)
+  h+=`<div class="td-card"><div class="td-h">Índices por elección</div><table class="td-tab"><thead><tr>
+      <th>Año</th><th>Particip.</th><th>Eje</th><th>N.E. cand.</th><th>Volatilidad</th></tr></thead><tbody>`;
+  h+=pts.map(p=>`<tr><td>${p.y}</td><td>${p.part==null?'—':p.part+'%'}</td><td>${p.eje==null?'—':p.eje}</td>
+      <td>${p.nep==null?'—':p.nep}</td><td>${p.vol==null?'—':p.vol}</td></tr>`).join('');
+  h+=`</tbody></table><div class="td-foot">Volatilidad de Pedersen (sobre bloques) respecto de la elección anterior del mismo tipo. N.E. = número efectivo (Laakso-Taagepera).</div></div>`;
+  box.innerHTML=h;
+}
+function firstObl(pts){ for(const p of pts) if(+p.y>=2022) return p.y; return null; }
+function chartBlock(title,sub,svg){ return `<div class="td-card"><div class="td-h">${title}</div><div class="td-sub">${sub}</div>${svg}</div>`; }
+function lineSVG(data,opt){ const W=560,H=180,mL=40,mR=14,mT=12,mB=26; const iw=W-mL-mR, ih=H-mT-mB;
+  const dd=data.filter(d=>d.v!=null); if(!dd.length) return '<div class="td-empty">Sin datos.</div>';
+  const n=data.length; const X=i=> mL + (n<=1? iw/2 : iw*i/(n-1)); const Y=v=> mT + ih*(1-(v-opt.ymin)/(opt.ymax-opt.ymin));
+  const fmt=v=>v==null?'':(opt.dec?v.toFixed(opt.dec):Math.round(v))+ (opt.suf||'');
+  let s=`<svg viewBox="0 0 ${W} ${H}" class="td-svg" preserveAspectRatio="xMidYMid meet">`;
+  // grid + eje Y
+  for(let g=0;g<=4;g++){ const val=opt.ymin+(opt.ymax-opt.ymin)*g/4, y=Y(val);
+    s+=`<line x1="${mL}" y1="${y}" x2="${W-mR}" y2="${y}" stroke="#eef1f5"/>`;
+    s+=`<text x="${mL-5}" y="${y+3}" text-anchor="end" class="td-ax">${opt.dec?val.toFixed(1):Math.round(val)}</text>`; }
+  // divider régimen
+  if(opt.divider){ const di=data.findIndex(d=>d.x===opt.divider); if(di>0){ const x=(X(di)+X(di-1))/2;
+    s+=`<line x1="${x}" y1="${mT}" x2="${x}" y2="${mT+ih}" stroke="#C55A11" stroke-dasharray="3 3" opacity=".7"/>`;
+    s+=`<text x="${x+3}" y="${mT+9}" class="td-ax" fill="#C55A11">obligatorio</text>`; } }
+  // benchmark
+  if(opt.bench){ const b=opt.bench; let path=''; b.forEach((d,i)=>{ if(d.v==null) return; path+=(path?'L':'M')+X(i)+' '+Y(d.v); });
+    if(path) s+=`<path d="${path}" fill="none" stroke="#9aa0a6" stroke-width="1.5" stroke-dasharray="4 3"/>`; }
+  // línea principal
+  let path=''; data.forEach((d,i)=>{ if(d.v==null) return; path+=(path?'L':'M')+X(i)+' '+Y(d.v); });
+  s+=`<path d="${path}" fill="none" stroke="${opt.color}" stroke-width="2.4"/>`;
+  data.forEach((d,i)=>{ if(d.v==null) return; s+=`<circle cx="${X(i)}" cy="${Y(d.v)}" r="3.4" fill="${opt.color}"/>`+
+    `<text x="${X(i)}" y="${Y(d.v)-8}" text-anchor="middle" class="td-val">${fmt(d.v)}</text>`; });
+  // eje X
+  data.forEach((d,i)=> s+=`<text x="${X(i)}" y="${H-8}" text-anchor="middle" class="td-ax">${d.x}</text>`);
+  if(opt.bench) s+=`<text x="${W-mR}" y="${mT+8}" text-anchor="end" class="td-ax" fill="#9aa0a6">- - ${opt.benchLbl}</text>`;
+  return s+'</svg>'; }
+function stackSVG(pts){ const W=560,H=180,mL=40,mR=14,mT=12,mB=26; const iw=W-mL-mR, ih=H-mT-mB;
+  const n=pts.length; const bw=Math.min(46, iw/n*0.62); const X=i=> mL + (n<=1? iw/2 : iw*i/(n-1));
+  let s=`<svg viewBox="0 0 ${W} ${H}" class="td-svg" preserveAspectRatio="xMidYMid meet">`;
+  for(let g=0;g<=4;g++){ const y=mT+ih*g/4; s+=`<line x1="${mL}" y1="${y}" x2="${W-mR}" y2="${y}" stroke="#eef1f5"/>`+
+    `<text x="${mL-5}" y="${y+3}" text-anchor="end" class="td-ax">${100-g*25}</text>`; }
+  pts.forEach((p,i)=>{ const bl=p.bl||{}; let acc=0; const x=X(i)-bw/2;
+    BLOC_ORDER.forEach(b=>{ const v=bl[b]; if(!v) return; const hgt=ih*v/100; const y=mT+ih-(acc+hgt)/1*1;
+      s+=`<rect x="${x}" y="${mT+ih-(acc+hgt)}" width="${bw}" height="${hgt}" fill="${BLOQCOL[b]}"><title>${b}: ${v}%</title></rect>`; acc+=hgt; });
+    s+=`<text x="${X(i)}" y="${H-8}" text-anchor="middle" class="td-ax">${p.y}</text>`; });
+  s+='</svg>';
+  s+=`<div class="td-leg">`+BLOC_ORDER.map(b=>`<span class="lg"><i style="background:${BLOQCOL[b]}"></i>${b}</span>`).join('')+`</div>`;
+  return s; }
