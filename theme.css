@@ -113,3 +113,5 @@ main #map{position:absolute;top:48px;left:0;right:0;bottom:0}
 #leg2 i{width:11px;height:11px;border-radius:2px;display:inline-block}
 @media(max-width:760px){ #side{width:210px} main{left:210px} }
 @media (prefers-reduced-motion:reduce){*{transition:none!important}}
+#capa{padding:5px 9px;border:1px solid var(--line-2);border-radius:8px;background:#fff;color:var(--navy);font-size:.8rem;font-weight:600;cursor:pointer}
+#capa:focus{outline:none;border-color:var(--accent)}

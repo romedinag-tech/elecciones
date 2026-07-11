@@ -24,12 +24,22 @@
   <div id="topbar">
     <span class="tb-lbl">Elección:</span>
     <div id="elecs"></div>
+    <span class="tb-lbl" style="margin-left:12px">Colorear por:</span>
+    <select id="capa">
+      <option value="electoral" selected>Resultado (bloque ganador)</option>
+      <option value="escolaridad">Escolaridad (años)</option>
+      <option value="pct_extranjeros">% población extranjera</option>
+      <option value="pct_indigena">% pueblos originarios</option>
+      <option value="pct_mujeres">% mujeres</option>
+      <option value="pct_60mas">% 60 años y más</option>
+      <option value="pct_jov1824">% jóvenes 18-24</option>
+    </select>
   </div>
   <div id="map"></div>
   <div id="resumen" class="resumen">Elige una comuna en el menú.</div>
   <div id="leg2"></div>
 </main>
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-<script src="explorador.js?v=3"></script>
+<script src="explorador.js?v=4"></script>
 </body>
 </html>
