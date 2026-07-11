@@ -247,3 +247,15 @@ main{position:absolute;top:0;left:298px;right:0;bottom:0;display:flex;flex-direc
 .dr-r{width:46px;text-align:right;font-weight:700;color:var(--ink);flex:none;font-variant-numeric:tabular-nums}
 .dr-sp{margin-top:12px;padding:10px 12px;background:var(--surface-alt);border-radius:var(--r-sm);font-size:.76rem;line-height:1.5;color:var(--ink-mid)}
 .dr-sp b{color:var(--navy)}
+
+/* ---- Características: sparkline + autoridad electa ---- */
+.spark{width:100%;max-width:520px;height:auto;display:block;margin-top:4px}
+.spark .td-val{font-size:9.5px;fill:var(--ink);font-weight:700}
+.spark .td-ax{font-size:8.5px;fill:var(--ink-lo)}
+.auth{padding:4px 0}
+.auth-role{font-size:.72rem;color:var(--ink-lo);font-weight:700;text-transform:uppercase;letter-spacing:.4px;margin-bottom:2px}
+.auth-name{font-family:var(--font-display);font-size:1.15rem;font-weight:700;color:var(--ink);line-height:1.15}
+.auth-meta{font-size:.82rem;color:var(--ink-mid);margin-top:1px}
+.auth-list{display:flex;flex-direction:column;gap:3px;margin-top:4px}
+.auth-li{font-size:.85rem;color:var(--ink);padding:3px 0;border-bottom:1px solid var(--surface-alt)}
+.auth-pty{color:var(--ink-lo);font-size:.76rem}

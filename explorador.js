@@ -1,5 +1,5 @@
 // Explorador territorial electoral — workbench: nivel → unidad → módulos. Elección elegida DENTRO de cada módulo.
-const V='17';
+const V='19';
 const LEVELS=[{k:'nacional',lbl:'Nacional'},{k:'region',lbl:'Región'},{k:'distrito',lbl:'Distrito'},
   {k:'circ_senatorial',lbl:'Circ. sen.'},{k:'metro',lbl:'Z. metro'},{k:'comuna',lbl:'Comuna'}];
 const REG_ORDER=[15,1,2,3,4,5,13,6,7,16,8,9,14,10,11,12];
@@ -9,7 +9,7 @@ const OPCION_COL={'APRUEBO':'#3F8E86','A FAVOR':'#3F8E86','RECHAZO':'#C55A11','E
 const SEQ=['#EFF3FB','#C6D9F0','#8CB3DE','#4A80C0','#16365A'];
 const REF_LBL='Presidencial 1ª v. 2025';
 
-let CAT={}, KPI={}, GEOCOM=null, AREAS=null, TIDX={}, CUTMAP={};
+let CAT={}, KPI={}, GEOCOM=null, AREAS=null, TIDX={}, CUTMAP={}, REPR={};
 let level='nacional', unitId=null, tab='C', elecSel=null, colorby='winner';
 let TERR=null; const TERRCACHE={};
 let map=null, layer=null, canvas=null, seqRange=null;
@@ -20,8 +20,9 @@ Promise.all([
   fetch('data/comunas.geojson?v='+V).then(r=>r.json()),
   fetch('data/explorador_areas.geojson?v='+V).then(r=>r.json()),
   fetch('data/territorial_index.json?v='+V).then(r=>r.json()),
-]).then(([cat,kpi,gcom,areas,tidx])=>{
-  CAT=cat; KPI=kpi; GEOCOM=gcom; AREAS=areas; TIDX=tidx;
+  fetch('data/representantes.json?v='+V).then(r=>r.json()).catch(()=>({})),
+]).then(([cat,kpi,gcom,areas,tidx,repr])=>{
+  CAT=cat; KPI=kpi; GEOCOM=gcom; AREAS=areas; TIDX=tidx; REPR=repr;
   Object.entries(KPI.comuna).forEach(([cut,o])=>CUTMAP[cut]={reg:o.reg,dist:o.dist,circ:o.circ,metro:o.metro,nombre:o.nombre});
   elecSel=defaultElec();
   buildLevels(); buildMenu(); selectUnit('CL');
@@ -103,31 +104,60 @@ function fmtD(v,d){ return v==null?'—':v.toFixed(d??1); }
 function card(v,lbl,sub){ return `<div class="kc"><div class="kv">${v}</div><div class="kl">${lbl}</div>${sub?`<div class="ks">${sub}</div>`:''}</div>`; }
 function bars(items){ return `<div class="kbars">`+items.map(([lbl,pct,col])=>
   `<div class="kbar"><span class="kbl">${lbl}</span><span class="kbt"><i style="width:${Math.max(2,pct||0)}%;background:${col||'var(--accent)'}"></i></span><span class="kbp">${fmtP(pct,0)}</span></div>`).join('')+`</div>`; }
-function renderC(){ const o=(KPI[level]||{})[unitId]; const p=document.getElementById('panelC');
+function renderC(){ ensureTend().then(renderCbody); }
+function partSpark(pts){ if(pts.length<1) return ''; const W=520,H=92,mL=32,mR=12,mT=10,mB=20,iw=W-mL-mR,ih=H-mT-mB;
+  const vals=pts.map(p=>p.part).filter(v=>v!=null); if(!vals.length) return '<div class="ks">Sin datos.</div>';
+  const lo=Math.max(0,Math.min(...vals)-8), hi=Math.min(100,Math.max(...vals)+8);
+  const n=pts.length, X=i=>mL+(n<=1?iw/2:iw*i/(n-1)), Y=v=>mT+ih*(1-(v-lo)/((hi-lo)||1));
+  let s=`<svg viewBox="0 0 ${W} ${H}" class="spark" preserveAspectRatio="xMidYMid meet">`;
+  let path=''; pts.forEach((p,i)=>{ if(p.part==null) return; path+=(path?'L':'M')+X(i)+' '+Y(p.part).toFixed(1); });
+  s+=`<path d="${path}" fill="none" stroke="#16365a" stroke-width="2.2"/>`;
+  pts.forEach((p,i)=>{ if(p.part==null) return; s+=`<circle cx="${X(i).toFixed(1)}" cy="${Y(p.part).toFixed(1)}" r="3.6" fill="#16365a"><title>${p.lbl}: ${p.part}%</title></circle>`+
+    `<text x="${X(i).toFixed(1)}" y="${Y(p.part)-7}" text-anchor="middle" class="td-val">${Math.round(p.part)}%</text>`+
+    `<text x="${X(i).toFixed(1)}" y="${H-6}" text-anchor="middle" class="td-ax">${p.lbl.replace(/^.* /,'')} ${p.y}</text>`; });
+  return s+'</svg>'; }
+function partClean(lbl){ return lbl; }
+function autoridad(o){ const r=(REPR[level]||{})[unitId];
+  const block=(role,name,meta)=>`<div class="auth"><div class="auth-role">${role}</div><div class="auth-name">${cap(name)}</div><div class="auth-meta">${meta}</div></div>`;
+  const listB=(role,items)=>`<div class="auth-role">${role}</div><div class="auth-list">`+items.map(x=>`<div class="auth-li">${x}</div>`).join('')+`</div>`;
+  const per=n=>n===2?'2° período':'1er período';
+  if(level==='comuna'){ if(!o.alcalde_partido) return '';
+    return `<div class="kblock"><div class="kbt-h">Autoridad comunal</div>`+
+      block('Alcalde/sa', o.alcalde||'', `${cap(o.alcalde_partido)}${o.alcalde_pct!=null?' · '+o.alcalde_pct+'% válidos':''}${o.alcalde_periodo?' · '+per(o.alcalde_periodo):''}`)+`</div>`; }
+  if(!r) return '';
+  const pty=p=>p&&p.trim()&&p!=='INDEPENDIENTES'?cap(p):(p==='INDEPENDIENTES'?'Independiente':'');
+  const j=(...xs)=>xs.filter(x=>x&&(''+x).trim()).join(' · ');
+  let inner='';
+  if(r.tipo==='presidente') inner=block('Presidente de la República', r.nombre, j(pty(r.partido), `${r.pct_1v}% 1ª v.`, `${r.pct_2v}% 2ª v.`));
+  else if(r.tipo==='gobernador') inner=block('Gobernador/a regional'+(level==='metro'?' (de la región)':''), r.nombre, j(pty(r.partido), r.pct!=null?r.pct+'%':'', per(r.periodo)));
+  else if(r.tipo==='diputados') inner=listB(`Diputados electos (${r.lista.length})`, r.lista.map(d=>`${cap(d.nombre)} <span class="auth-pty">${cap(d.partido)}${d.pct!=null?' · '+d.pct+'%':''}</span>`));
+  else if(r.tipo==='senadores') inner=listB(`Senadores en ejercicio (${r.lista.length})`, r.lista.map(x=>`${cap(x.nombre)} <span class="auth-pty">${cap(x.partido)} · ${x.anio}</span>`));
+  return inner? `<div class="kblock"><div class="kbt-h">Autoridad electa</div>${inner}</div>`:''; }
+function renderCbody(){ const o=(KPI[level]||{})[unitId]; const p=document.getElementById('panelC');
   if(!o){ p.innerHTML='<div class="mod-pad">Sin datos para esta unidad.</div>'; return; }
-  const lvlLbl=LEVELS.find(x=>x.k===level).lbl; const eje=o.eje; const ejePos=eje==null?50:(eje/10*100);
+  const lvlLbl=LEVELS.find(x=>x.k===level).lbl;
+  // serie de participación era obligatoria (≥ sept 2022)
+  const ser=(TENDCACHE[level]||{})[unitId]||{};
+  const oblig=Object.keys(ser).filter(e=>e>='2022-09'&&!e.includes('ppii')&&!e.includes('primarias')).sort()
+    .map(e=>({e,y:ser[e].y,lbl:elecInfo(e).label,part:ser[e].part})).filter(x=>x.part!=null);
   let h=`<div class="mod-pad"><div class="c-head"><div><div class="c-name">${cap(o.nombre)}</div>
-    <div class="c-meta">${lvlLbl}${o.reg_nom&&level!=='nacional'&&level!=='region'?' · '+cap(o.reg_nom):''}</div></div>
-    ${o.bloque_ganador?`<span class="c-chip" style="background:${BLOQCOL[o.bloque_ganador]||'#999'}">${o.bloque_ganador}</span>`:''}</div>`;
-  h+=`<div class="kblock"><div class="kbt-h">Padrón y participación <span>· ${REF_LBL}</span></div><div class="kgrid">`+
-     card(fmtN(o.inscritos),'Electores inscritos')+card(fmtP(o.participacion),'Participación')+card(fmtN(o.votantes),'Votantes')+`</div></div>`;
-  h+=`<div class="kblock"><div class="kbt-h">Composición del electorado</div><div class="kgrid">`+
+    <div class="c-meta">${lvlLbl}${o.reg_nom&&level!=='nacional'&&level!=='region'?' · '+cap(o.reg_nom):''}</div></div></div>`;
+  h+=`<div class="kblock"><div class="kbt-h">Padrón y participación</div><div class="kgrid">`+
+     card(fmtN(o.inscritos),'Electores inscritos','padrón 2025')+card(fmtP(o.participacion),'Participación','pdte. 2025 1ª v.')+card(fmtN(o.votantes),'Votantes','pdte. 2025 1ª v.')+`</div>`+
+     (oblig.length? `<div class="ksub">Participación desde el voto obligatorio (2022→)</div>${partSpark(oblig)}`:'')+`</div>`;
+  h+=`<div class="kblock"><div class="kbt-h">Composición del electorado y población</div><div class="kgrid">`+
      card(fmtP(o.pct_muj),'Mujeres','del electorado')+card(fmtP(o.pct_ext),'Extranjeros','electores no chilenos')+`</div>`+
-     `<div class="ksub">Distribución etaria</div>`+bars([['18–29',o.pct_a1829,'#4A80C0'],['30–44',o.pct_a3044,'#6f9fd0'],['45–59',o.pct_a4559,'#9aa0a6'],['60+',o.pct_a60,'#C55A11']])+`</div>`;
+     `<div class="ksub">Distribución etaria del electorado</div>`+bars([['18–29',o.pct_a1829,'#4A80C0'],['30–44',o.pct_a3044,'#6f9fd0'],['45–59',o.pct_a4559,'#9aa0a6'],['60+',o.pct_a60,'#C55A11']])+
+     (o.pct_rural!=null?`<div class="ksub">Población urbana / rural (Censo 2024)</div>`+bars([['Urbana',100-o.pct_rural,'#4A80C0'],['Rural',o.pct_rural,'#3F8E86']]):'')+`</div>`;
   h+=`<div class="kblock"><div class="kbt-h">Demografía y territorio <span>· Censo 2024</span></div><div class="kgrid">`+
      card(fmtN(o.pob_2024),'Población',o.var_pct!=null?`${o.var_pct>0?'+':''}${fmtD(o.var_pct)}% vs 2017`:'')+
      card(fmtD(o.dens_hab_ha),'Densidad','hab/ha')+card(fmtP(o.pct_60mas),'60 años y más','población')+card(fmtP(o.pct_inmig),'Inmigrantes','población')+`</div></div>`;
-  h+=`<div class="kblock"><div class="kbt-h">Socioeconómico <span>· CASEN / INE</span></div><div class="kgrid">`+
-     card(o.casen_ing_pc?('$'+fmtN(o.casen_ing_pc)):'—','Ingreso per cápita','hogar, CASEN')+card(fmtP(o.casen_pobreza_pct),'Pobreza','por ingresos')+
-     card(fmtD(o.escol),'Escolaridad','años promedio')+card(fmtP(o.pct_terciaria),'Educación superior','completa')+
-     card(o.nse_label||'—','Nivel socioeconómico','grupo modal')+card(fmtP(o.pct_activa),'Ocupación','pob. económ. activa')+`</div></div>`;
-  h+=`<div class="kblock"><div class="kbt-h">Color político <span>· ${REF_LBL}</span></div>`;
-  if(o.ganador) h+=`<div class="cpwin">1ª mayoría: <b>${cap(o.ganador)}</b>${o.bloque_ganador?` · <span style="color:${BLOQCOL[o.bloque_ganador]||'#999'};font-weight:700">${o.bloque_ganador}</span>`:''}</div>`;
-  h+=`<div class="eje-wrap"><div class="eje-track"><div class="eje-mark" style="left:${ejePos}%"></div></div>
-      <div class="eje-lbl"><span>Izquierda</span><span class="eje-v">${eje==null?'—':'Eje '+fmtD(eje)+' / 10'}</span><span>Derecha</span></div></div>`;
-  if(level==='comuna' && o.alcalde_partido)
-    h+=`<div class="alc">Alcalde/sa vigente: <b>${cap(o.alcalde||'')}</b> · ${o.alcalde_partido} · <span style="color:${BLOQCOL[o.alcalde_bloque]||'#999'}">${o.alcalde_bloque||''}</span></div>`;
-  h+=`</div><div class="c-foot">Nivel <b>${lvlLbl}</b> · ${fmtN(o.pob_2024)} habitantes. Composición del electorado según quienes votaron en la elección de referencia; socioeconómico Censo 2024 + CASEN.</div></div>`;
+  h+=`<div class="kblock"><div class="kbt-h">Socioeconómico <span>· Censo / CASEN</span></div><div class="kgrid">`+
+     card(o.casen_ing_pc?('$'+fmtN(o.casen_ing_pc)):'—','Ingreso per cápita','hogar, CASEN')+card(fmtP(o.casen_pobreza_pct),'Pobreza','multidimensional')+
+     card(fmtD(o.escol),'Escolaridad','años promedio')+card(o.nse_label||'—','Nivel socioeconómico','grupo modal')+card(fmtP(o.pct_activa),'Ocupación','pob. económ. activa')+`</div>`+
+     (o.esc_basica!=null?`<div class="ksub">Nivel educacional (población 25+ años)</div>`+bars([['Básica',o.esc_basica,'#C55A11'],['Media',o.esc_media,'#9aa0a6'],['Técnica',o.esc_tecnica,'#6f9fd0'],['Profesional',o.esc_prof,'#4A80C0']]):'')+`</div>`;
+  h+=autoridad(o);
+  h+=`<div class="c-foot">Nivel <b>${lvlLbl}</b> · ${fmtN(o.pob_2024)} habitantes. Composición del electorado según quienes votaron; demografía y educación del Censo 2024; ingreso/pobreza de CASEN.</div></div>`;
   p.innerHTML=h; }
 
 // =================== MÓDULO Análisis territorial ===================
