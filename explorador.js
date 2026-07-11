@@ -41,7 +41,8 @@ function buildMenu(){
   const m=document.getElementById('menu'); m.innerHTML='';
   MENU.regiones.forEach(reg=>{
     const wrap=document.createElement('div'); wrap.className='rn-region';
-    const h=document.createElement('button'); h.className='rn-head'; h.textContent=reg.region;
+    const h=document.createElement('button'); h.className='rn-head';
+    h.innerHTML=`<span class="rt"><span class="chev">▶</span>${reg.region}</span><span class="cnt">${reg.comunas.length}</span>`;
     h.onclick=()=> wrap.classList.toggle('open');
     const cl=document.createElement('div'); cl.className='rn-comunas';
     reg.comunas.forEach(c=>{

@@ -5,13 +5,19 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Explorador territorial electoral — Chile</title>
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
-<link rel="stylesheet" href="theme.css?v=2">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Source+Serif+4:opsz,wght@8..60,600;8..60,700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="theme.css?v=3">
 </head>
 <body>
 <aside id="side">
-  <div class="nav"><b>Explorador</b> · <a href="tendencia.html">Tendencia</a> · <a href="recintos.html">Recintos</a></div>
-  <h1>Explorador territorial</h1>
-  <input id="buscar" type="text" autocomplete="off" placeholder="Buscar comuna…">
+  <div class="sb-head">
+    <div class="nav"><b>Explorador</b> · <a href="tendencia.html">Tendencia</a> · <a href="recintos.html">Recintos</a></div>
+    <h1>Explorador territorial</h1>
+    <p class="sb-sub">Resultados por comuna y por local de votación · Chile 2013–2025</p>
+  </div>
+  <div class="sb-search"><input id="buscar" type="text" autocomplete="off" placeholder="Buscar comuna…"></div>
   <div id="menu"></div>
 </aside>
 <main>
@@ -24,6 +30,6 @@
   <div id="leg2"></div>
 </main>
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-<script src="explorador.js?v=2"></script>
+<script src="explorador.js?v=3"></script>
 </body>
 </html>
