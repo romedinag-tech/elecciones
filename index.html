@@ -3,26 +3,27 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Recintos de votación de Chile — Presidencial 2025</title>
+<title>Explorador territorial electoral — Chile</title>
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
-<link rel="stylesheet" href="theme.css">
+<link rel="stylesheet" href="theme.css?v=2">
 </head>
 <body>
-<div id="panel">
-  <div class="nav"><b>Recintos</b> · <a href="tendencia.html">Tendencia</a></div>
-  <h1>Recintos de votación · Chile</h1>
-  <p class="sub">Presidencial 2025 — 3.164 recintos · áreas de influencia oficiales (SERVEL / IDE Chile).</p>
-  <div class="ctrl">
-    <label><input type="checkbox" id="tgAreas" checked> Áreas de influencia</label>
-    <label><input type="checkbox" id="tgRec" checked> Recintos (puntos)</label>
-    <label><input type="checkbox" id="tgPen"> Solo penitenciarios</label>
+<aside id="side">
+  <div class="nav"><b>Explorador</b> · <a href="tendencia.html">Tendencia</a> · <a href="recintos.html">Recintos</a></div>
+  <h1>Explorador territorial</h1>
+  <input id="buscar" type="text" autocomplete="off" placeholder="Buscar comuna…">
+  <div id="menu"></div>
+</aside>
+<main>
+  <div id="topbar">
+    <span class="tb-lbl">Elección:</span>
+    <div id="elecs"></div>
   </div>
-  <div id="legend"></div>
-  <div id="info" class="info">Pasa el cursor sobre un recinto.</div>
-  <p class="foot">Tamaño del punto = inscritos · color del área = inscritos (padrón del local).</p>
-</div>
-<div id="map"></div>
+  <div id="map"></div>
+  <div id="resumen" class="resumen">Elige una comuna en el menú.</div>
+  <div id="leg2"></div>
+</main>
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-<script src="app.js?v=1"></script>
+<script src="explorador.js?v=2"></script>
 </body>
 </html>
