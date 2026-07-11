@@ -1,0 +1,109 @@
+{
+ "presidencial": [
+  {
+   "anio": 2013,
+   "tipo": "presidencial",
+   "eje_medio": 4.65,
+   "bloques": {
+    "Izquierda": 2.81,
+    "Centro-izquierda": 57.69,
+    "Populista/Otro": 10.11,
+    "Derecha": 25.03,
+    "(sin clasificar)": 4.36
+   }
+  },
+  {
+   "anio": 2017,
+   "tipo": "presidencial",
+   "eje_medio": 5.42,
+   "bloques": {
+    "Izquierda": 0.87,
+    "Centro-izquierda": 48.65,
+    "Centro": 5.87,
+    "Centro-derecha": 36.66,
+    "Derecha radical": 7.94
+   }
+  },
+  {
+   "anio": 2021,
+   "tipo": "presidencial",
+   "eje_medio": 5.69,
+   "bloques": {
+    "Izquierda": 1.46,
+    "Centro-izquierda": 44.95,
+    "Populista/Otro": 12.85,
+    "Centro-derecha": 12.79,
+    "Derecha radical": 27.94
+   }
+  },
+  {
+   "anio": 2025,
+   "tipo": "presidencial",
+   "eje_medio": 6.38,
+   "bloques": {
+    "Izquierda": 27.41,
+    "Centro-izquierda": 1.19,
+    "Centro": 1.26,
+    "Populista/Otro": 19.8,
+    "Derecha": 12.45,
+    "Derecha radical": 37.9
+   }
+  }
+ ],
+ "diputados": [
+  {
+   "anio": 2013,
+   "tipo": "diputados",
+   "eje_medio": 5.26,
+   "bloques": {
+    "Izquierda": 9.73,
+    "Centro-izquierda": 34.01,
+    "Centro": 15.55,
+    "Centro-derecha": 14.92,
+    "Derecha": 21.31,
+    "Derecha radical": 4.48
+   }
+  },
+  {
+   "anio": 2017,
+   "tipo": "diputados",
+   "eje_medio": 5.06,
+   "bloques": {
+    "Izquierda": 11.82,
+    "Centro-izquierda": 35.4,
+    "Centro": 12.25,
+    "Centro-derecha": 22.06,
+    "Derecha": 16.64,
+    "Derecha radical": 1.82
+   }
+  },
+  {
+   "anio": 2021,
+   "tipo": "diputados",
+   "eje_medio": 5.16,
+   "bloques": {
+    "Izquierda": 13.35,
+    "Centro-izquierda": 31.7,
+    "Centro": 4.62,
+    "Populista/Otro": 8.43,
+    "Centro-derecha": 14.46,
+    "Derecha": 10.99,
+    "Derecha radical": 16.45
+   }
+  },
+  {
+   "anio": 2025,
+   "tipo": "diputados",
+   "eje_medio": 5.83,
+   "bloques": {
+    "Izquierda": 10.27,
+    "Centro-izquierda": 26.44,
+    "Centro": 7.05,
+    "Populista/Otro": 11.99,
+    "Centro-derecha": 10.72,
+    "Derecha": 8.35,
+    "Derecha radical": 25.18
+   }
+  }
+ ]
+}

@@ -15,3 +15,16 @@ html,body{margin:0;height:100%;font-family:system-ui,-apple-system,Segoe UI,Robo
 .info .tag{display:inline-block;background:#eef;color:#334;border-radius:4px;padding:1px 6px;font-size:11px;margin-top:3px}
 .foot{color:#888;font-size:10.5px;margin:10px 0 0;line-height:1.35}
 .leaflet-container{background:#eef1f4}
+
+/* nav + M1 tendencia */
+.nav{font-size:12px;margin:-2px 0 8px;color:#888}
+.nav a{color:#2166ac;text-decoration:none}
+.nav b{color:#111}
+.selrow{display:block;font-size:12.5px;margin:6px 0}
+.selrow select{margin-left:6px;padding:2px 4px;font-size:12.5px}
+#serie{margin:10px 0;border-top:1px solid #eee;padding-top:8px}
+.serie-t{font-size:12px;margin-bottom:5px;color:#333}
+.bar{display:flex;align-items:center;gap:5px;margin:2px 0;font-size:10.5px}
+.bar .bl{width:96px;color:#444;text-align:right;flex:none}
+.bar .tk{height:9px;border-radius:2px;display:inline-block}
+.bar .pv{color:#333;font-weight:600}

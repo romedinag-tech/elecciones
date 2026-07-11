@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Tendencia política por distrito — Chile 2013-2025</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<link rel="stylesheet" href="theme.css">
+</head>
+<body>
+<div id="panel">
+  <div class="nav"><a href="index.html">Recintos</a> · <b>Tendencia</b></div>
+  <h1>Tendencia política · distritos</h1>
+  <p class="sub">Eje izquierda–derecha (0–10) del voto presidencial 1ª vuelta, por distrito electoral.</p>
+  <label class="selrow">Elección:
+    <select id="anio">
+      <option value="2013">Presidencial 2013</option>
+      <option value="2017">Presidencial 2017</option>
+      <option value="2021">Presidencial 2021</option>
+      <option value="2025" selected>Presidencial 2025</option>
+    </select>
+  </label>
+  <div id="legend"></div>
+  <div id="serie"></div>
+  <div id="info" class="info">Pasa el cursor sobre un distrito.</div>
+  <p class="foot">Azul = más a la izquierda · Rojo = más a la derecha · 5,0 = centro. Fuente: SERVEL + clasificación ideológica propia.</p>
+</div>
+<div id="map"></div>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="tendencia.js?v=1"></script>
+</body>
+</html>
