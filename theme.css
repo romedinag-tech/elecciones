@@ -231,3 +231,19 @@ main{position:absolute;top:0;left:298px;right:0;bottom:0;display:flex;flex-direc
 .td-tab td:first-child{text-align:left;font-weight:600}
 .td-foot{font-size:.66rem;color:var(--ink-lo);margin-top:8px;line-height:1.4}
 .td-empty{color:var(--ink-lo);font-size:.82rem;padding:10px 0}
+
+/* ---- Módulo Drivers ---- */
+#panelR{overflow-y:auto;background:var(--paper)}
+.dr-ctl{display:flex;align-items:center;gap:10px;margin:6px 0 14px;flex-wrap:wrap}
+#routsel{padding:5px 9px;border:1px solid var(--line-2);border-radius:8px;background:#fff;color:var(--navy);font-size:.8rem;font-weight:600;cursor:pointer}
+.dr-n{font-size:.72rem;color:var(--ink-lo)}
+.dr-cor{display:flex;align-items:center;gap:9px;padding:4px 4px;font-size:.78rem;border-radius:6px;cursor:default}
+.dr-cor[data-k]{cursor:pointer}
+.dr-cor[data-k]:hover{background:var(--surface-alt)}
+.dr-cor.on{background:var(--surface-alt)}
+.dr-lbl{width:120px;flex:none;color:var(--ink-mid)}
+.dr-track{flex:1;height:12px;position:relative;background:linear-gradient(90deg,transparent 49.6%,var(--line-2) 49.6%,var(--line-2) 50.4%,transparent 50.4%)}
+.dr-fill{position:absolute;top:1px;height:10px;border-radius:2px}
+.dr-r{width:46px;text-align:right;font-weight:700;color:var(--ink);flex:none;font-variant-numeric:tabular-nums}
+.dr-sp{margin-top:12px;padding:10px 12px;background:var(--surface-alt);border-radius:var(--r-sm);font-size:.76rem;line-height:1.5;color:var(--ink-mid)}
+.dr-sp b{color:var(--navy)}

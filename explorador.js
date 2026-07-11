@@ -1,5 +1,5 @@
 // Explorador territorial electoral — workbench: nivel → unidad → módulos. Elección elegida DENTRO de cada módulo.
-const V='15';
+const V='17';
 const LEVELS=[{k:'nacional',lbl:'Nacional'},{k:'region',lbl:'Región'},{k:'distrito',lbl:'Distrito'},
   {k:'circ_senatorial',lbl:'Circ. sen.'},{k:'metro',lbl:'Z. metro'},{k:'comuna',lbl:'Comuna'}];
 const REG_ORDER=[15,1,2,3,4,5,13,6,7,16,8,9,14,10,11,12];
@@ -75,11 +75,11 @@ function selectUnit(id,btn){ unitId=id;
   document.getElementById('placeholder').style.display='none';
   document.getElementById('tabs').style.display='flex'; renderTabs(); showTab(tab); }
 function showPlaceholder(html){ unitId=null; document.getElementById('tabs').style.display='none';
-  ['panelC','panelD','panelT'].forEach(p=>document.getElementById(p).classList.remove('show'));
+  ['panelC','panelD','panelR','panelT'].forEach(p=>document.getElementById(p).classList.remove('show'));
   const ph=document.getElementById('placeholder'); ph.style.display='flex'; ph.querySelector('.ph-card p').innerHTML=html; }
 
 const MODS=[{k:'C',lbl:'Características principales'},{k:'T',lbl:'Análisis territorial'},
-  {k:'D',lbl:'Análisis tendencial'},{k:'R',lbl:'Drivers',soon:1},{k:'P',lbl:'Predictivo',soon:1}];
+  {k:'D',lbl:'Análisis tendencial'},{k:'R',lbl:'Drivers'},{k:'P',lbl:'Predictivo',soon:1}];
 function renderTabs(){ const t=document.getElementById('tabs'); t.innerHTML='';
   MODS.forEach(M=>{ const b=document.createElement('button'); b.textContent=M.lbl+(M.soon?' ·':'');
     b.className='tabbtn'+(M.k===tab?' on':'')+(M.soon?' soon':''); if(M.soon){ b.title='Próximamente'; b.disabled=true; }
@@ -89,10 +89,12 @@ function showTab(t){ tab=t;
   document.getElementById('panelC').classList.toggle('show', t==='C');
   document.getElementById('panelT').classList.toggle('show', t==='T');
   document.getElementById('panelD').classList.toggle('show', t==='D');
+  document.getElementById('panelR').classList.toggle('show', t==='R');
   if(t==='C') renderC();
   else if(t==='T'){ ensureMap(); document.getElementById('elecBtn').textContent=elecInfo(elecSel).label+' · '+elecInfo(elecSel).year;
     loadTerr(elecSel).then(()=>{ buildColorby(); setTimeout(()=>{ map.invalidateSize(); renderT(); },30); }); }
-  else if(t==='D') renderD(); }
+  else if(t==='D') renderD();
+  else if(t==='R') renderR(); }
 
 // =================== MÓDULO Características ===================
 function fmtN(v){ return v==null?'—':Math.round(v).toLocaleString('es-CL'); }
@@ -364,3 +366,118 @@ function stackSVG(pts){ const W=560,H=180,mL=40,mR=14,mT=12,mB=26; const iw=W-mL
   s+='</svg>';
   s+=`<div class="td-leg">`+BLOC_ORDER.map(b=>`<span class="lg"><i style="background:${BLOQCOL[b]}"></i>${b}</span>`).join('')+`</div>`;
   return s; }
+
+// =================== MÓDULO Drivers (qué explica el voto) ===================
+const DRV=[{k:'escol',lbl:'Escolaridad'},{k:'casen_ing_pc',lbl:'Ingreso p/cápita'},{k:'casen_pobreza_pct',lbl:'Pobreza %'},
+  {k:'pct_terciaria',lbl:'Educ. superior %'},{k:'pct_inmig',lbl:'Inmigrantes %'},{k:'pct_60mas',lbl:'60+ años %'},
+  {k:'pct_a1829',lbl:'Jóvenes 18-29 %'},{k:'nse_score',lbl:'NSE (score)'},{k:'dens_hab_ha',lbl:'Densidad'},{k:'pct_activa',lbl:'Ocupación %'}];
+const ROUT=[{k:'netpos',lbl:'Balance derecha − izquierda (pp)'},{k:'eje',lbl:'Eje izquierda–derecha (0–10)'},{k:'part',lbl:'Participación (%)'}];
+const REGK=['escol','casen_ing_pc','casen_pobreza_pct','pct_inmig','pct_60mas','pct_a1829','dens_hab_ha','pct_activa']; // subconjunto no redundante para OLS
+let VECINOS=null, rout='netpos', rdrv=null;
+function ensureVecinos(){ if(VECINOS) return Promise.resolve();
+  return fetch('data/comuna_vecinos.json?v='+V).then(r=>r.json()).then(d=>{VECINOS=d;}); }
+function outcomeVal(cut){ const s=(TENDCACHE['comuna']||{})[String(cut)]; const d=s&&s[elecSel]; if(!d) return null;
+  if(rout==='netpos') return netPos(d.bl); if(rout==='eje') return d.eje??null; return d.part??null; }
+// estadística
+function mean(a){ return a.reduce((s,v)=>s+v,0)/a.length; }
+function sd(a){ const m=mean(a); return Math.sqrt(a.reduce((s,v)=>s+(v-m)*(v-m),0)/(a.length-1))||1; }
+function pearson(x,y){ const n=x.length; if(n<3) return null; const mx=mean(x),my=mean(y);
+  let sxy=0,sx=0,sy=0; for(let i=0;i<n;i++){ const a=x[i]-mx,b=y[i]-my; sxy+=a*b; sx+=a*a; sy+=b*b; }
+  return (sx&&sy)? sxy/Math.sqrt(sx*sy) : null; }
+function transpose(M){ return M[0].map((_,j)=>M.map(r=>r[j])); }
+function mul(A,B){ const Bt=transpose(B); return A.map(r=>Bt.map(c=>r.reduce((s,v,i)=>s+v*c[i],0))); }
+function inv(A){ const n=A.length; const M=A.map((r,i)=>r.concat(Array.from({length:n},(_,j)=>i===j?1:0)));
+  for(let i=0;i<n;i++){ let p=i; for(let r=i+1;r<n;r++) if(Math.abs(M[r][i])>Math.abs(M[p][i])) p=r;
+    if(Math.abs(M[p][i])<1e-9) return null; [M[i],M[p]]=[M[p],M[i]]; const d=M[i][i];
+    for(let j=0;j<2*n;j++) M[i][j]/=d;
+    for(let r=0;r<n;r++){ if(r===i) continue; const f=M[r][i]; for(let j=0;j<2*n;j++) M[r][j]-=f*M[i][j]; } }
+  return M.map(r=>r.slice(n)); }
+function olsFit(rows,names){ const D=rows.filter(r=>r.y!=null && names.every(k=>r.x[k]!=null)); const n=D.length;
+  if(n<names.length+3) return null;
+  const ys=D.map(r=>r.y), ym=mean(ys), ysd=sd(ys);
+  const col=names.map(k=>{ const v=D.map(r=>r.x[k]); return {m:mean(v),s:sd(v)}; });
+  const y=ys.map(v=>(v-ym)/ysd);
+  const X=D.map(r=>[1].concat(names.map((k,j)=>(r.x[k]-col[j].m)/col[j].s)));
+  const XtX=mul(transpose(X),X); const lam=n*0.12; for(let i=1;i<XtX.length;i++) XtX[i][i]+=lam; // ridge suave (estabiliza colinealidad)
+  const iv=inv(XtX); if(!iv) return null;
+  const Xty=mul(transpose(X),y.map(v=>[v])); const beta=mul(iv,Xty).map(r=>r[0]);
+  const yhat=X.map(row=>row.reduce((s,v,j)=>s+v*beta[j],0));
+  const resid=y.map((v,i)=>v-yhat[i]);
+  const sstot=y.reduce((s,v)=>s+v*v,0), ssres=resid.reduce((s,v)=>s+v*v,0);
+  return {names, beta:beta.slice(1), r2:1-ssres/sstot, n, residByCut:Object.fromEntries(D.map((r,i)=>[String(r.cut),resid[i]]))}; }
+function moranI(valByCut, cuts){ const set=new Set(cuts.filter(c=>valByCut[c]!=null).map(String));
+  const arr=[...set]; if(arr.length<8||!VECINOS) return null; const m=mean(arr.map(c=>valByCut[c]));
+  const z={}; arr.forEach(c=>z[c]=valByCut[c]-m); let num=0,S0=0;
+  arr.forEach(c=>{ (VECINOS[c]||[]).forEach(nb=>{ const nk=String(nb); if(!set.has(nk)) return; num+=z[c]*z[nk]; S0+=1; }); });
+  const den=arr.reduce((s,c)=>s+z[c]*z[c],0); if(!S0||!den) return null;
+  return {I:(arr.length/S0)*(num/den), E:-1/(arr.length-1), n:arr.length}; }
+
+function renderR(){ const p=document.getElementById('panelR');
+  if(level==='comuna'){ p.innerHTML=`<div class="mod-pad"><div class="c-head"><div class="c-name">Drivers</div></div>
+    <div class="td-card">El análisis de drivers compara <b>varias unidades</b> entre sí. Sube a nivel <b>Región</b>, <b>Zona metropolitana</b> o <b>Nacional</b>.<br><span style="color:var(--ink-lo);font-size:.8rem">(Análisis sub-comunal por local: próximamente.)</span></div></div>`; return; }
+  p.innerHTML='<div class="mod-pad">Cargando…</div>';
+  Promise.all([ensureTendComuna(),ensureVecinos()]).then(renderRbody); }
+function renderRbody(){ const p=document.getElementById('panelR'); const o=(KPI[level]||{})[unitId]||{};
+  const cutsSet=unitCuts(); const cuts=(cutsSet? [...cutsSet] : Object.keys(KPI.comuna).map(Number)).map(String);
+  // dataset
+  const rows=cuts.map(cut=>{ const k=KPI.comuna[cut]||{}; const x={}; DRV.forEach(d=>x[d.k]=k[d.k]==null?null:k[d.k]);
+    return {cut, y:outcomeVal(cut), x}; }).filter(r=>KPI.comuna[r.cut]);
+  const valid=rows.filter(r=>r.y!=null);
+  let h=`<div class="mod-pad"><div class="c-head"><div><div class="c-name">${cap(o.nombre||'')}</div>
+    <div class="c-meta">¿Qué explica el voto? · ${LEVELS.find(x=>x.k===level).lbl} · ${elecInfo(elecSel).label} ${elecInfo(elecSel).year}</div></div></div>`;
+  h+=`<div class="dr-ctl"><span class="tb-lbl">Variable a explicar</span><select id="routsel">`+
+     ROUT.map(r=>`<option value="${r.k}"${r.k===rout?' selected':''}>${r.lbl}</option>`).join('')+`</select>
+     <span class="dr-n">${valid.length} unidades con dato</span></div>`;
+  if(valid.length<10){ h+=`<div class="td-card">Muy pocas unidades con dato de esta elección (${valid.length}) para un análisis robusto. Prueba otra elección o un nivel con más sub-unidades.</div></div>`;
+    p.innerHTML=h; document.getElementById('routsel').onchange=e=>{rout=e.target.value;rdrv=null;renderRbody();}; return; }
+  // correlaciones
+  const cors=DRV.map(d=>{ const xs=[],ys=[]; valid.forEach(r=>{ if(r.x[d.k]!=null){ xs.push(r.x[d.k]); ys.push(r.y); } });
+    return {k:d.k,lbl:d.lbl,r:pearson(xs,ys),n:xs.length}; }).filter(c=>c.r!=null).sort((a,b)=>Math.abs(b.r)-Math.abs(a.r));
+  if(!rdrv) rdrv=cors[0].k;
+  h+=`<div class="td-card"><div class="td-h">Correlación con el voto</div>
+     <div class="td-sub">r de Pearson entre cada variable socioeconómica y el resultado, sobre las ${valid.length} unidades. Clic para ver la dispersión.</div>`;
+  h+=cors.map(c=>{ const w=Math.abs(c.r)*50; const pos=c.r>=0; return `<div class="dr-cor${c.k===rdrv?' on':''}" data-k="${c.k}">
+     <span class="dr-lbl">${c.lbl}</span><span class="dr-track"><i class="dr-fill" style="width:${w}%;${pos?'left:50%':'right:50%'};background:${pos?'#b2182b':'#2166ac'}"></i></span>
+     <span class="dr-r">${c.r>0?'+':''}${c.r.toFixed(2)}</span></div>`; }).join('')+`</div>`;
+  // scatter
+  const dd=DRV.find(d=>d.k===rdrv); const sp=valid.filter(r=>r.x[rdrv]!=null).map(r=>({x:r.x[rdrv],y:r.y,name:cap((KPI.comuna[r.cut]||{}).nombre||'')}));
+  h+=`<div class="td-card"><div class="td-h">Dispersión: ${dd.lbl} vs voto</div>
+     <div class="td-sub">Cada punto es una sub-unidad. Recta = ajuste lineal.</div>${scatterSVG(sp,{xlab:dd.lbl,ylab:ROUT.find(r=>r.k===rout).lbl})}</div>`;
+  // regresión OLS + espacial
+  const fit=olsFit(valid,REGK);
+  h+=`<div class="td-card"><div class="td-h">Regresión múltiple (peso de cada driver)</div>`;
+  if(!fit){ h+=`<div class="td-sub">Insuficientes datos completos para la regresión.</div>`; }
+  else{ h+=`<div class="td-sub">Coeficientes estandarizados (β, ridge) controlando por el resto · R² = <b>${(fit.r2*100).toFixed(0)}%</b> · n=${fit.n}. Positivo (rojo) = empuja a la derecha. Subconjunto no redundante de variables.</div>`;
+    const order=fit.names.map((k,i)=>({k,lbl:DRV.find(d=>d.k===k).lbl,b:fit.beta[i]})).sort((a,b)=>Math.abs(b.b)-Math.abs(a.b));
+    const mx=Math.max(...order.map(o=>Math.abs(o.b)),.01);
+    h+=order.map(o=>{ const w=Math.abs(o.b)/mx*50; const pos=o.b>=0; return `<div class="dr-cor">
+       <span class="dr-lbl">${o.lbl}</span><span class="dr-track"><i class="dr-fill" style="width:${w}%;${pos?'left:50%':'right:50%'};background:${pos?'#b2182b':'#2166ac'}"></i></span>
+       <span class="dr-r">${o.b>0?'+':''}${o.b.toFixed(2)}</span></div>`; }).join('');
+    // diagnóstico espacial de Moran (outcome + residuos)
+    const outByCut={}; valid.forEach(r=>outByCut[r.cut]=r.y);
+    const mOut=moranI(outByCut, valid.map(r=>r.cut));
+    const mRes=fit.residByCut? moranI(fit.residByCut, Object.keys(fit.residByCut)) : null;
+    if(mOut){ const dep=mRes&&mRes.I>0.15;
+      h+=`<div class="dr-sp"><b>Diagnóstico espacial (I de Moran)</b><br>
+        Voto: I = ${mOut.I.toFixed(2)} ${mOut.I>0.15?'→ hay clustering territorial':''}<br>
+        Residuos del modelo: I = ${mRes?mRes.I.toFixed(2):'—'} ${dep?'→ queda dependencia espacial: un modelo espacial (SAR/SEM) mejoraría el ajuste':'→ los residuos no muestran autocorrelación fuerte'}.</div>`; }
+  }
+  h+=`</div>`;
+  h+=`<div class="c-foot">Análisis ecológico (describe territorios, no personas). Correlación no implica causalidad. RF/XGBoost + SHAP (importancia no lineal) quedan pendientes (requieren scikit-learn).</div></div>`;
+  p.innerHTML=h;
+  document.getElementById('routsel').onchange=e=>{ rout=e.target.value; rdrv=null; renderRbody(); };
+  p.querySelectorAll('.dr-cor[data-k]').forEach(el=>el.onclick=()=>{ rdrv=el.dataset.k; renderRbody(); }); }
+function scatterSVG(pts,opt){ const W=560,H=230,mL=44,mR=14,mT=12,mB=34; const iw=W-mL-mR,ih=H-mT-mB;
+  if(pts.length<3) return '<div class="td-empty">Sin datos.</div>';
+  const xs=pts.map(p=>p.x), ys=pts.map(p=>p.y); const xmin=Math.min(...xs),xmax=Math.max(...xs),ymin=Math.min(...ys),ymax=Math.max(...ys);
+  const X=v=> mL+iw*(v-xmin)/((xmax-xmin)||1); const Y=v=> mT+ih*(1-(v-ymin)/((ymax-ymin)||1));
+  const r=pearson(xs,ys); const mx=mean(xs),my=mean(ys); let sxy=0,sxx=0; xs.forEach((x,i)=>{sxy+=(x-mx)*(ys[i]-my);sxx+=(x-mx)*(x-mx);});
+  const b=sxy/(sxx||1), a=my-b*mx;
+  let s=`<svg viewBox="0 0 ${W} ${H}" class="td-svg" preserveAspectRatio="xMidYMid meet">`;
+  for(let g=0;g<=4;g++){ const y=mT+ih*g/4, val=ymax-(ymax-ymin)*g/4; s+=`<line x1="${mL}" y1="${y}" x2="${W-mR}" y2="${y}" stroke="#eef1f5"/>`+
+    `<text x="${mL-5}" y="${y+3}" text-anchor="end" class="td-ax">${val.toFixed(ymax-ymin<5?1:0)}</text>`; }
+  pts.forEach(p=>{ s+=`<circle cx="${X(p.x).toFixed(1)}" cy="${Y(p.y).toFixed(1)}" r="3" fill="#1F6FEB" fill-opacity=".55"><title>${p.name}: (${p.x.toFixed(1)}, ${p.y.toFixed(1)})</title></circle>`; });
+  s+=`<line x1="${X(xmin)}" y1="${Y(a+b*xmin)}" x2="${X(xmax)}" y2="${Y(a+b*xmax)}" stroke="#16365a" stroke-width="2"/>`;
+  s+=`<text x="${W-mR}" y="${mT+10}" text-anchor="end" class="td-val">r = ${r>0?'+':''}${r.toFixed(2)}</text>`;
+  s+=`<text x="${mL+iw/2}" y="${H-6}" text-anchor="middle" class="td-ax">${opt.xlab}</text>`;
+  return s+'</svg>'; }
