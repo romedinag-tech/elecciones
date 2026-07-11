@@ -1,0 +1,264 @@
+{
+"2013": [
+{
+"familia": "Consejeros Regionales",
+"elecciones": [
+{
+"id": "2013-11_cores",
+"label": "Consejeros Reg."
+}
+]
+},
+{
+"familia": "Parlamentaria",
+"elecciones": [
+{
+"id": "2013-11_diputados",
+"label": "Diputados"
+},
+{
+"id": "2013-11_senadores",
+"label": "Senadores"
+}
+]
+},
+{
+"familia": "Presidencial",
+"elecciones": [
+{
+"id": "2013-11_presidencial_1v",
+"label": "Presidencial 1ª v."
+},
+{
+"id": "2013-12_presidencial_2v",
+"label": "Presidencial 2ª v."
+}
+]
+}
+],
+"2016": [
+{
+"familia": "Municipal",
+"elecciones": [
+{
+"id": "2016-10_alcaldes",
+"label": "Alcaldes"
+},
+{
+"id": "2016-10_concejales",
+"label": "Concejales"
+}
+]
+}
+],
+"2017": [
+{
+"familia": "Consejeros Regionales",
+"elecciones": [
+{
+"id": "2017-11_cores",
+"label": "Consejeros Reg."
+}
+]
+},
+{
+"familia": "Parlamentaria",
+"elecciones": [
+{
+"id": "2017-11_diputados",
+"label": "Diputados"
+},
+{
+"id": "2017-11_senadores",
+"label": "Senadores"
+}
+]
+},
+{
+"familia": "Presidencial",
+"elecciones": [
+{
+"id": "2017-11_presidencial_1v",
+"label": "Presidencial 1ª v."
+},
+{
+"id": "2017-12_presidencial_2v",
+"label": "Presidencial 2ª v."
+}
+]
+}
+],
+"2020": [
+{
+"familia": "Constitucional",
+"elecciones": [
+{
+"id": "2020-10_plebiscito",
+"label": "Plebiscito"
+}
+]
+}
+],
+"2021": [
+{
+"familia": "Consejeros Regionales",
+"elecciones": [
+{
+"id": "2021-11_cores",
+"label": "Consejeros Reg."
+}
+]
+},
+{
+"familia": "Constitucional",
+"elecciones": [
+{
+"id": "2021-05_convencion_generales",
+"label": "Convención Const."
+},
+{
+"id": "2021-05_convencion_ppii",
+"label": "Convención (P. indígenas)"
+}
+]
+},
+{
+"familia": "Gobernadores",
+"elecciones": [
+{
+"id": "2021-05_gobernadores_1v",
+"label": "Gobernadores 1ª v."
+},
+{
+"id": "2021-06_gobernadores_2v",
+"label": "Gobernadores 2ª v."
+}
+]
+},
+{
+"familia": "Municipal",
+"elecciones": [
+{
+"id": "2021-05_alcaldes",
+"label": "Alcaldes"
+},
+{
+"id": "2021-05_concejales",
+"label": "Concejales"
+}
+]
+},
+{
+"familia": "Parlamentaria",
+"elecciones": [
+{
+"id": "2021-11_diputados",
+"label": "Diputados"
+},
+{
+"id": "2021-11_senadores",
+"label": "Senadores"
+}
+]
+},
+{
+"familia": "Presidencial",
+"elecciones": [
+{
+"id": "2021-11_presidencial_1v",
+"label": "Presidencial 1ª v."
+},
+{
+"id": "2021-12_presidencial_2v",
+"label": "Presidencial 2ª v."
+}
+]
+}
+],
+"2022": [
+{
+"familia": "Constitucional",
+"elecciones": [
+{
+"id": "2022-09_plebiscito_salida",
+"label": "Plebiscito salida"
+}
+]
+}
+],
+"2023": [
+{
+"familia": "Constitucional",
+"elecciones": [
+{
+"id": "2023-05_consejo_generales",
+"label": "Consejo Const."
+},
+{
+"id": "2023-05_consejo_ppii",
+"label": "Consejo Const. (P. indígenas)"
+},
+{
+"id": "2023-12_plebiscito",
+"label": "Plebiscito"
+}
+]
+}
+],
+"2024": [
+{
+"familia": "Gobernadores",
+"elecciones": [
+{
+"id": "2024-10_gobernadores_1v",
+"label": "Gobernadores 1ª v."
+},
+{
+"id": "2024-11_gobernadores_2v",
+"label": "Gobernadores 2ª v."
+}
+]
+},
+{
+"familia": "Municipal",
+"elecciones": [
+{
+"id": "2024-10_alcaldes",
+"label": "Alcaldes"
+}
+]
+}
+],
+"2025": [
+{
+"familia": "Parlamentaria",
+"elecciones": [
+{
+"id": "2025-11_diputados",
+"label": "Diputados"
+},
+{
+"id": "2025-11_senadores",
+"label": "Senadores"
+}
+]
+},
+{
+"familia": "Presidencial",
+"elecciones": [
+{
+"id": "2025-06_primarias",
+"label": "Primaria presidencial"
+},
+{
+"id": "2025-11_presidencial_1v",
+"label": "Presidencial 1ª v."
+},
+{
+"id": "2025-12_presidencial_2v",
+"label": "Presidencial 2ª v."
+}
+]
+}
+]
+}
