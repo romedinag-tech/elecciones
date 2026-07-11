@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Recintos de votación de Chile — Presidencial 2025</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<link rel="stylesheet" href="theme.css">
+</head>
+<body>
+<div id="panel">
+  <h1>Recintos de votación · Chile</h1>
+  <p class="sub">Presidencial 2025 — 3.164 recintos · áreas de influencia oficiales (SERVEL / IDE Chile).</p>
+  <div class="ctrl">
+    <label><input type="checkbox" id="tgAreas" checked> Áreas de influencia</label>
+    <label><input type="checkbox" id="tgRec" checked> Recintos (puntos)</label>
+    <label><input type="checkbox" id="tgPen"> Solo penitenciarios</label>
+  </div>
+  <div id="legend"></div>
+  <div id="info" class="info">Pasa el cursor sobre un recinto.</div>
+  <p class="foot">Tamaño del punto = inscritos · color del área = inscritos (padrón del local).</p>
+</div>
+<div id="map"></div>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="app.js?v=1"></script>
+</body>
+</html>

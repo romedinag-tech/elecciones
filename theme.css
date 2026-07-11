@@ -1,0 +1,17 @@
+*{box-sizing:border-box}
+html,body{margin:0;height:100%;font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif}
+#map{position:absolute;inset:0;z-index:1}
+#panel{position:absolute;top:12px;left:12px;z-index:1000;width:290px;max-width:calc(100% - 24px);
+  background:#fff;border-radius:10px;box-shadow:0 2px 14px rgba(0,0,0,.18);padding:14px 16px;font-size:13px;color:#1a1a1a}
+#panel h1{font-size:16px;margin:0 0 2px}
+#panel .sub{margin:0 0 10px;color:#555;font-size:12px;line-height:1.35}
+.ctrl label{display:block;margin:3px 0;cursor:pointer;font-size:12.5px}
+.ctrl input{vertical-align:middle;margin-right:6px}
+#legend{margin:10px 0;border-top:1px solid #eee;padding-top:8px}
+#legend .row{display:flex;align-items:center;gap:6px;margin:2px 0;font-size:11.5px;color:#444}
+#legend i{width:14px;height:14px;border-radius:3px;display:inline-block;opacity:.85}
+.info{border-top:1px solid #eee;padding-top:8px;margin-top:8px;min-height:52px;font-size:12px;line-height:1.4}
+.info b{font-size:12.5px}
+.info .tag{display:inline-block;background:#eef;color:#334;border-radius:4px;padding:1px 6px;font-size:11px;margin-top:3px}
+.foot{color:#888;font-size:10.5px;margin:10px 0 0;line-height:1.35}
+.leaflet-container{background:#eef1f4}
