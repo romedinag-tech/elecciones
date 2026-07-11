@@ -8,40 +8,43 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Source+Serif+4:opsz,wght@8..60,600;8..60,700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="theme.css?v=6">
+<link rel="stylesheet" href="theme.css?v=11">
 </head>
 <body>
 <aside id="side">
   <div class="sb-head">
     <div class="nav"><b>Explorador</b> · <a href="tendencia.html">Tendencia</a> · <a href="recintos.html">Recintos</a></div>
     <h1>Explorador territorial</h1>
-    <p class="sb-sub">Resultados por comuna y por local de votación · Chile 2013–2025</p>
+    <p class="sb-sub">Elige un <b>nivel</b> y una <b>unidad</b> para ver sus análisis · Chile 2013–2025</p>
   </div>
-  <div class="sb-search"><input id="buscar" type="text" autocomplete="off" placeholder="Buscar comuna…"></div>
+  <div class="sb-levels" id="levels"></div>
+  <div class="sb-search"><input id="buscar" type="text" autocomplete="off" placeholder="Buscar unidad…"></div>
   <div id="menu"></div>
 </aside>
 <main>
   <div id="topbar">
-    <div class="tb-grp"><span class="tb-lbl">Año</span><div id="anios"></div></div>
-    <div class="tb-grp"><span class="tb-lbl">Elección</span><div id="elecs"><span class="tb-hint">elige un año</span></div></div>
-    <div class="tb-grp"><span class="tb-lbl">Nivel</span><div id="niveles"></div></div>
-    <div class="tb-grp"><span class="tb-lbl">Color</span>
-      <select id="capa">
-        <option value="electoral" selected>Resultado (ganador)</option>
-        <option value="escolaridad">Escolaridad (años)</option>
-        <option value="pct_extranjeros">% extranjeros</option>
-        <option value="pct_indigena">% pueblos originarios</option>
-        <option value="pct_mujeres">% mujeres</option>
-        <option value="pct_60mas">% 60+ años</option>
-        <option value="pct_jov1824">% jóvenes 18-24</option>
-      </select>
+    <span class="tb-lbl">Elección</span>
+    <div id="anios"></div>
+    <span class="tb-sel" id="elecSelLbl">—</span>
+  </div>
+  <div id="elecpanel"></div>
+  <div id="content">
+    <div id="tabs"></div>
+    <div id="panelC" class="mod"></div>
+    <div id="panelT" class="mod">
+      <div id="map"></div>
+      <div id="resumen" class="resumen"></div>
+      <div id="leg2"></div>
+    </div>
+    <div id="placeholder">
+      <div class="ph-card">
+        <h2>Elige una unidad territorial</h2>
+        <p>Selecciona un <b>nivel</b> (nacional, región, distrito, circunscripción, zona metropolitana o comuna) y luego una unidad en el menú de la izquierda. Se abrirán sus módulos de análisis.</p>
+      </div>
     </div>
   </div>
-  <div id="map"></div>
-  <div id="resumen" class="resumen">Elige una comuna en el menú.</div>
-  <div id="leg2"></div>
 </main>
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-<script src="explorador.js?v=8"></script>
+<script src="explorador.js?v=11"></script>
 </body>
 </html>
