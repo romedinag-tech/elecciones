@@ -1,5 +1,5 @@
 // Explorador territorial electoral — workbench: nivel → unidad → módulos. Elección elegida DENTRO de cada módulo.
-const V='45';
+const V='46';
 const LEVELS=[{k:'nacional',lbl:'Nacional'},{k:'region',lbl:'Región'},{k:'distrito',lbl:'Distrito'},
   {k:'circ_senatorial',lbl:'Circ. sen.'},{k:'metro',lbl:'Z. metro'},{k:'comuna',lbl:'Comuna'}];
 const REG_ORDER=[15,1,2,3,4,5,13,6,7,16,8,9,14,10,11,12];
@@ -555,17 +555,54 @@ function addCross(ms){ const P=ms.map(m=>({fm:m.muj/m.t, fj:m.ed[0]/m.t, y:mesaO
   const L=p=>{p=Math.max(1e-4,Math.min(1-1e-4,p)); return Math.log(p/(1-p));}, iL=x=>1/(1+Math.exp(-x));
   return [[0,0],[1,0],[0,1],[1,1]].map(([g,a])=>iL(L(gm[g])+L(am[a])-L(o))*100);  // Mj,Hj,Mm,Hm
 }
-function renderCross(ms,s){ const box=document.getElementById('terrbottom'); if(!box) return;
-  if(colorby==='part'){ const ex=s&&s.edad_x_sexo; if(!ex){ box.innerHTML=''; return; }
-    box.innerHTML=crossGrid('Participación por género × edad — <b>observado</b>',
+function crossHTML(ms,s){
+  if(colorby==='part'){ const ex=s&&s.edad_x_sexo; if(!ex) return '<div class="sz-hint">Sin cruce observado.</div>';
+    return crossGrid('Participación por género × edad — <b>observado</b>',
       {'Mujeres':AGE4.map(a=>ex.M?ex.M[a]:null),'Hombres':AGE4.map(a=>ex.H?ex.H[a]:null)},
-      'Dato oficial (padrón × votantes): % de cada grupo que sufragó. Exacto, sin estimación.'); return; }
-  const b=addCross(ms); if(!b){ box.innerHTML=''; return; }
+      'Dato oficial (padrón × votantes): % de cada grupo que sufragó. Exacto, sin estimación.'); }
+  const b=addCross(ms); if(!b) return '<div class="sz-hint">Pocas mesas para estimar.</div>';
   const verb=colorby==='nulos'?'Voto nulo/blanco':'Voto de '+cap((TERR.candidatos[+colorby.slice(5)]||{}).ape1||'');
-  box.innerHTML=crossGrid(`${verb} por género × edad — <b>tendencia estimada</b>`,
+  return crossGrid(`${verb} por género × edad — <b>tendencia estimada</b>`,
     {'Mujeres':[b[0],b[2]],'Hombres':[b[1],b[3]]},
     '⚠ <b>Tendencia estimada</b> (modelo aditivo de los sesgos de género y edad, por inferencia ecológica a nivel mesa). Muestra la <b>dirección</b>; la interacción fina no es identificable con el dato agregado.',
     ['Jóvenes 18-24','25+']);
+}
+function barzHTML(){ const cuts=unitCuts();  // barras por COMUNA (nombradas) del ámbito
+  const rows=[];
+  for(const cut in TERR.comuna){ if(cuts&&!cuts.has(+cut)) continue; const v=metricVal(TERR.comuna[cut]); if(v!=null) rows.push({nom:cap((KPI.comuna[cut]||{}).nombre||cut), v}); }
+  if(rows.length<2) return '<div class="sz-hint">El desglose por zona compara <b>comunas</b>. Elige un nivel mayor (región/nacional) para ver el ranking.</div>';
+  rows.sort((a,b)=>b.v-a.v); const top=rows.slice(0,16); const max=Math.max(...top.map(r=>r.v),1);
+  let h=`<div class="xg-title">${cap(colLabel())} por comuna · top ${top.length} de ${rows.length}</div><div class="barz">`;
+  h+=top.map(r=>`<div class="barz-row"><span class="barz-n" title="${r.nom}">${r.nom}</span><span class="barz-b"><i style="width:${Math.max(2,100*r.v/max)}%"></i></span><span class="barz-v">${r.v.toFixed(1)}%</span></div>`).join('');
+  return h+`</div>`;
+}
+function aumentoHTML(){ const r=rounds(elecSel); const ci=+colorby.slice(5); const c=TERR.candidatos[ci]||{};
+  const nm=s=>(s||'').toUpperCase().trim();
+  const t1=TERRCACHE[r.v1]; const i1=t1?t1.candidatos.findIndex(x=>nm(x.ape1)===nm(c.ape1)):-1;
+  if(i1<0) return '<div class="sz-hint">Este candidato no estuvo en 1ª vuelta (no hay comparación).</div>';
+  const cuts=unitCuts(); const rows=[];
+  for(const cut in TERR.comuna){ if(cuts&&!cuts.has(+cut)) continue;
+    const v2=(TERR.comuna[cut].v[ci]||0); const u1=t1.comuna[cut]; const v1=u1?(u1.v[i1]||0):0;
+    if(v1>0) rows.push({nom:cap((KPI.comuna[cut]||{}).nombre||cut), inc:100*(v2-v1)/v1, v1, v2}); }
+  if(rows.length<1) return '<div class="sz-hint">Sin datos comparables.</div>';
+  rows.sort((a,b)=>b.inc-a.inc); const top=rows.slice(0,16); const max=Math.max(...top.map(x=>Math.abs(x.inc)),1);
+  let h=`<div class="xg-title">Aumento de votos 1ª→2ª vuelta · ${cap(c.ape1||'')} · top ${top.length} de ${rows.length}</div><div class="barz">`;
+  h+=top.map(r=>`<div class="barz-row"><span class="barz-n" title="${r.nom}: ${fmtN(r.v1)}→${fmtN(r.v2)}">${r.nom}</span><span class="barz-b"><i style="width:${Math.max(2,100*Math.abs(r.inc)/max)}%;background:#2E8B57"></i></span><span class="barz-v">+${r.inc.toFixed(0)}%</span></div>`).join('');
+  return h+`<div class="xg-note">Crecimiento porcentual de los votos de cada comuna entre 1ª y 2ª vuelta (absorbe a los candidatos eliminados).</div></div>`;
+}
+let botView='cruce';
+function renderCross(ms,s){ const box=document.getElementById('terrbottom'); if(!box) return;
+  const views=[['cruce','Cruce edad×género'],['barras','Barras por zona']];
+  if(hasRounds(elecSel)&&colorby.startsWith('cand:')) views.push(['aumento','Aumento 1ª→2ª']);
+  if(!views.some(v=>v[0]===botView)) botView='cruce';
+  let h=`<div class="bot-seg">`+views.map(([v,l])=>`<button class="trsp-b${botView===v?' on':''}" data-bv="${v}">${l}</button>`).join('')+`</div>`;
+  if(botView==='aumento'){ const r=rounds(elecSel);
+    if(!TERRCACHE[r.v1]){ box.innerHTML=h+'<div class="sz-hint">Cargando 1ª vuelta…</div>'; fetchTerr(r.v1).then(()=>renderCross(ms,s)); return; }
+    h+=aumentoHTML(); }
+  else if(botView==='barras') h+=barzHTML();
+  else h+=crossHTML(ms,s);
+  box.innerHTML=h;
+  box.querySelectorAll('.bot-seg .trsp-b').forEach(b=>b.onclick=()=>{ botView=b.dataset.bv; renderCross(ms,s); });
 }
 function renderRight(geo,feats,idp,data){
   const tb=document.getElementById('terrbottom'); if(tb) tb.innerHTML='';  // el cruce solo aparece en sesgos
