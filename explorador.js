@@ -1,5 +1,5 @@
 // Explorador territorial electoral — workbench: nivel → unidad → módulos. Elección elegida DENTRO de cada módulo.
-const V='19';
+const V='20';
 const LEVELS=[{k:'nacional',lbl:'Nacional'},{k:'region',lbl:'Región'},{k:'distrito',lbl:'Distrito'},
   {k:'circ_senatorial',lbl:'Circ. sen.'},{k:'metro',lbl:'Z. metro'},{k:'comuna',lbl:'Comuna'}];
 const REG_ORDER=[15,1,2,3,4,5,13,6,7,16,8,9,14,10,11,12];
@@ -247,7 +247,36 @@ function renderT(){
       l.on('mouseover',()=>l.setStyle({weight:2})); l.on('mouseout',()=>l.setStyle({weight:geo==='local'?.7:.6})); }
   }).addTo(map);
   try{ map.fitBounds(layer.getBounds(),{padding:[22,22],maxZoom:geo==='local'?14:11}); }catch(e){}
-  renderSide(geo,feats,idp,data); renderResumen(geo,feats.length); renderLeg();
+  renderSide(geo,feats,idp,data); renderResumen(geo,feats.length); renderLeg(); renderSesgos();
+}
+// ---- sesgos de participación por grupo (bajo el mapa) ----
+let SESGOS={}; const NSE_ORDER=['Alto','Medio-alto','Medio','Medio-bajo','Bajo'];
+function ensureSesgos(){ if(SESGOS[level]) return Promise.resolve();
+  return fetch('data/sesgos/'+level+'.json?v='+V).then(r=>r.json()).then(d=>{SESGOS[level]=d;}).catch(()=>{SESGOS[level]={};}); }
+function nsePart(){ const cuts=unitCuts(); const tc=TENDCACHE['comuna']||{}; const grp={};
+  const cs=cuts?[...cuts]:Object.keys(KPI.comuna).map(Number);
+  cs.forEach(cut=>{ const k=KPI.comuna[cut]; const ser=tc[String(cut)]; const p=ser&&ser[elecSel]?ser[elecSel].part:null;
+    if(!k||!k.nse_label||p==null) return; const g=grp[k.nse_label]=grp[k.nse_label]||{w:0,s:0}; const w=k.inscritos||1; g.w+=w; g.s+=w*p; });
+  const o={}; Object.entries(grp).forEach(([k,v])=>o[k]=v.w?Math.round(10*v.s/v.w)/10:null); return o; }
+function szCard(title,pairs,hint){ return `<div class="sz-card"><div class="sz-h">${title}</div>`+
+  pairs.map(([l,v])=>`<div class="sz-bar"><span class="sz-l">${l}</span><span class="sz-t"><i style="width:${v==null?0:Math.min(100,v)}%"></i></span><span class="sz-v">${v==null?'—':v+'%'}</span></div>`).join('')+
+  (hint?`<div class="sz-note">${hint}</div>`:'')+`</div>`; }
+function renderSesgos(){ const box=document.getElementById('terrbottom');
+  if(colorby!=='part'){ box.innerHTML=`<div class="sz-hint">Elige el indicador <b>Participación</b> para ver los sesgos por edad, género, nacionalidad y nivel socioeconómico.<span> · Sesgos por candidato (inferencia ecológica): próximamente.</span></div>`; return; }
+  box.innerHTML='<div class="sz-hint">Cargando sesgos…</div>';
+  Promise.all([ensureSesgos(),ensureTendComuna()]).then(()=>{
+    const s=((SESGOS[level]||{})[unitId]||{})[elecSel];
+    let h=`<div class="sz-title">Sesgos de participación · ${TERR.meta.label} ${elecInfo(elecSel).year} · quién vota más</div><div class="sz-row">`;
+    if(!s){ h+=`<div class="sz-hint">Sin desglose demográfico disponible para esta elección.</div>`; }
+    else{
+      h+=szCard('Edad',[['18–29',s.edad['18-29']],['30–49',s.edad['30-49']],['50–64',s.edad['50-64']],['65+',s.edad['65+']]]);
+      h+=szCard('Género',[['Hombres',s.sexo.H],['Mujeres',s.sexo.M]]);
+      h+=szCard('Nacionalidad',[['Chilenos',s.nac.C],['Extranjeros',s.nac.E]]);
+      const nse=nsePart(); const ord=NSE_ORDER.filter(k=>nse[k]!=null);
+      if(ord.length>1) h+=szCard('Nivel socioec.', ord.map(k=>[k,nse[k]]), 'ecológico (por comuna)');
+    }
+    h+=`</div>`; box.innerHTML=h;
+  });
 }
 function subName(f,geo){ return geo==='local'?(f.properties.recinto||'Local'):cap(f.properties.comuna||''); }
 function popupSub(f,geo,idp,data){ const u=data[String(f.properties[idp])]; const w=u&&winnerOf(u);
