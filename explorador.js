@@ -1,5 +1,5 @@
 // Explorador territorial electoral — workbench: nivel → unidad → módulos. Elección elegida DENTRO de cada módulo.
-const V='41';
+const V='42';
 const LEVELS=[{k:'nacional',lbl:'Nacional'},{k:'region',lbl:'Región'},{k:'distrito',lbl:'Distrito'},
   {k:'circ_senatorial',lbl:'Circ. sen.'},{k:'metro',lbl:'Z. metro'},{k:'comuna',lbl:'Comuna'}];
 const REG_ORDER=[15,1,2,3,4,5,13,6,7,16,8,9,14,10,11,12];
@@ -532,13 +532,20 @@ let TRASP={};
 function traspKey(){ const r=rounds(elecSel); return r.v1&&r.v2?r.v1+'__'+r.v2:null; }
 function ensureTrasp(k){ if(TRASP[k]!==undefined) return Promise.resolve();
   return fetch('data/traspaso/'+k+'.json?v='+V).then(r=>r.ok?r.json():null).then(d=>{TRASP[k]=d;}).catch(()=>{TRASP[k]=null;}); }
-function traspUnit(d){ // devuelve {T,r1,nivel,nota} para la unidad seleccionada
-  if(!d) return null; const lv=d.levels;
-  if(level==='nacional') return {u:lv.nacional&&lv.nacional['CL'],nivel:'país'};
-  if(level==='comuna') return {u:lv.comuna&&lv.comuna[String(unitId)],nivel:'comuna'};
-  if(level==='region'){ const cuts=unitCuts(); const any=cuts&&[...cuts][0]; const rid=any?Math.floor(any/1000):null;
-    return {u:rid!=null&&lv.region&&lv.region[String(rid)],nivel:'región'}; }
-  return {u:lv.nacional&&lv.nacional['CL'],nivel:'país',nota:'No desagregado a este nivel; se muestra el total nacional.'}; }
+function unitReg(){ const cuts=unitCuts(); const any=cuts&&[...cuts][0]; return any?Math.floor(any/1000):null; }
+function traspUnit(d){ // devuelve {u,nivel,nota,r1l,r2l} para la unidad seleccionada
+  if(!d) return null;
+  if(d.tipo==='gobernadores'){ const rg=d.regions||{};   // carrera por REGIÓN
+    const rid = level==='nacional'?null:unitReg();
+    if(rid==null) return {nivel:'país',nota:'El traspaso de gobernadores es por <b>región</b> (cada región es su propia carrera). Elige una región o comuna.'};
+    const u=rg[String(rid)];
+    if(!u) return {nivel:'región',nota:'Esta región no tuvo 2ª vuelta de gobernador.'};
+    return {u,nivel:'región',r1l:u.r1_labels,r2l:u.r2_labels}; }
+  const lv=d.levels;
+  if(level==='nacional') return {u:lv.nacional&&lv.nacional['CL'],nivel:'país',r1l:d.r1_labels,r2l:d.r2_labels};
+  if(level==='comuna') return {u:lv.comuna&&lv.comuna[String(unitId)],nivel:'comuna',r1l:d.r1_labels,r2l:d.r2_labels};
+  if(level==='region'){ const rid=unitReg(); return {u:rid!=null&&lv.region&&lv.region[String(rid)],nivel:'región',r1l:d.r1_labels,r2l:d.r2_labels}; }
+  return {u:lv.nacional&&lv.nacional['CL'],nivel:'país',nota:'No desagregado a este nivel; se muestra el total nacional.',r1l:d.r1_labels,r2l:d.r2_labels}; }
 let traspSeg='total';
 function renderTraspaso(){ const box=document.getElementById('terrside'); const k=traspKey();
   if(!k){ box.innerHTML='<div class="mth-pad"><div class="sz-hint">Sin par de vueltas para esta elección.</div></div>'; return; }
@@ -546,7 +553,8 @@ function renderTraspaso(){ const box=document.getElementById('terrside'); const 
   ensureTrasp(k).then(()=>{ const d=TRASP[k];
     if(!d){ box.innerHTML='<div class="mth-pad"><div class="sz-hint">Datos de traspaso no disponibles.</div></div>'; return; }
     const tu=traspUnit(d);
-    if(!tu||!tu.u){ box.innerHTML=`<div class="mth-pad"><div class="sz-hint">Sin estimación de traspaso para esta unidad (pocas mesas).</div></div>`; return; }
+    if(!tu){ box.innerHTML=`<div class="mth-pad"><div class="sz-hint">Sin estimación de traspaso.</div></div>`; return; }
+    if(!tu.u){ box.innerHTML=`<div class="mth-pad"><div class="sz-title">Traspaso de votos 1ª → 2ª vuelta</div><div class="sz-hint" style="margin-top:8px">${tu.nota||'Sin estimación de traspaso para esta unidad (pocas mesas).'}</div></div>`; return; }
     const r=rounds(elecSel);
     const canSeg = level==='nacional' && d.strata;  // estratos solo a nivel país
     if(!canSeg) traspSeg='total';
@@ -555,14 +563,14 @@ function renderTraspaso(){ const box=document.getElementById('terrside'); const 
     if(canSeg) h+=`<div class="trsp-seg">`+[['total','Total'],['edad','Por edad'],['genero','Por género']]
       .map(([v,l])=>`<button class="trsp-b${traspSeg===v?' on':''}" data-seg="${v}">${l}</button>`).join('')+`</div>`;
     if(traspSeg==='total'){
-      h+=sankeySVG(d.r1_labels,d.r2_labels,tu.u.T,tu.u.r1);
+      h+=sankeySVG(tu.r1l,tu.r2l,tu.u.T,tu.u.r1);
     } else {
       const sg=d.strata[traspSeg], co=sg.corte;
       const parts = traspSeg==='edad'
         ? [['jovenes',`Áreas más jóvenes (≥${co}% menores de 30)`],['mayores',`Áreas más mayores (<${co}%)`]]
         : [['mujeres',`Áreas con más mujeres (≥${co}%)`],['hombres',`Áreas con más hombres (<${co}%)`]];
       for(const [key,sub] of parts){ const s=sg[key]; if(!s) continue;
-        h+=`<div class="trsp-strat"><div class="trsp-sub">${sub}</div>`+sankeySVG(d.r1_labels,d.r2_labels,s.T,s.r1)+`</div>`; }
+        h+=`<div class="trsp-strat"><div class="trsp-sub">${sub}</div>`+sankeySVG(tu.r1l,tu.r2l,s.T,s.r1)+`</div>`; }
     }
     h+=`<div class="sz-note">Estimación por <b>inferencia ecológica R×C a nivel mesa</b> (cada origen reparte 100%). Base = padrón → la <b>abstención</b> es categoría. ${traspSeg!=='total'?'<b>Segmentado ecológicamente</b>: compara el traspaso entre <b>zonas</b> según su composición etaria/de género — describe territorios, no el voto de personas (falacia ecológica).':'Estimación agregada, no voto individual.'}${tu.nota?' '+tu.nota:''}</div></div>`;
     box.innerHTML=h;
