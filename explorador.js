@@ -1,5 +1,5 @@
 // Explorador territorial electoral — workbench: nivel → unidad → módulos. Elección elegida DENTRO de cada módulo.
-const V='40';
+const V='41';
 const LEVELS=[{k:'nacional',lbl:'Nacional'},{k:'region',lbl:'Región'},{k:'distrito',lbl:'Distrito'},
   {k:'circ_senatorial',lbl:'Circ. sen.'},{k:'metro',lbl:'Z. metro'},{k:'comuna',lbl:'Comuna'}];
 const REG_ORDER=[15,1,2,3,4,5,13,6,7,16,8,9,14,10,11,12];
@@ -539,6 +539,7 @@ function traspUnit(d){ // devuelve {T,r1,nivel,nota} para la unidad seleccionada
   if(level==='region'){ const cuts=unitCuts(); const any=cuts&&[...cuts][0]; const rid=any?Math.floor(any/1000):null;
     return {u:rid!=null&&lv.region&&lv.region[String(rid)],nivel:'región'}; }
   return {u:lv.nacional&&lv.nacional['CL'],nivel:'país',nota:'No desagregado a este nivel; se muestra el total nacional.'}; }
+let traspSeg='total';
 function renderTraspaso(){ const box=document.getElementById('terrside'); const k=traspKey();
   if(!k){ box.innerHTML='<div class="mth-pad"><div class="sz-hint">Sin par de vueltas para esta elección.</div></div>'; return; }
   box.innerHTML='<div class="mth-pad"><div class="sz-hint">Cargando traspaso…</div></div>';
@@ -547,11 +548,25 @@ function renderTraspaso(){ const box=document.getElementById('terrside'); const 
     const tu=traspUnit(d);
     if(!tu||!tu.u){ box.innerHTML=`<div class="mth-pad"><div class="sz-hint">Sin estimación de traspaso para esta unidad (pocas mesas).</div></div>`; return; }
     const r=rounds(elecSel);
+    const canSeg = level==='nacional' && d.strata;  // estratos solo a nivel país
+    if(!canSeg) traspSeg='total';
     let h=`<div class="mth-pad"><div class="sz-title">Traspaso de votos 1ª → 2ª vuelta</div>`+
       `<div class="mth-subt">${elecInfo(r.v1).label} ${elecInfo(r.v1).year} → 2ª vuelta · ${cap(((KPI[level]||{})[unitId]||{}).nombre||'')} · a nivel <b>${tu.nivel}</b></div>`;
-    h+=sankeySVG(d.r1_labels,d.r2_labels,tu.u.T,tu.u.r1);
-    h+=`<div class="sz-note">Estimación por <b>inferencia ecológica R×C a nivel mesa</b> (mínimos cuadrados restringidos: cada origen reparte 100% entre los destinos). Base = padrón (inscritos) → la <b>abstención</b> es una categoría. Es estimación agregada, no voto individual (secreto).${tu.nota?' '+tu.nota:''}</div></div>`;
+    if(canSeg) h+=`<div class="trsp-seg">`+[['total','Total'],['edad','Por edad'],['genero','Por género']]
+      .map(([v,l])=>`<button class="trsp-b${traspSeg===v?' on':''}" data-seg="${v}">${l}</button>`).join('')+`</div>`;
+    if(traspSeg==='total'){
+      h+=sankeySVG(d.r1_labels,d.r2_labels,tu.u.T,tu.u.r1);
+    } else {
+      const sg=d.strata[traspSeg], co=sg.corte;
+      const parts = traspSeg==='edad'
+        ? [['jovenes',`Áreas más jóvenes (≥${co}% menores de 30)`],['mayores',`Áreas más mayores (<${co}%)`]]
+        : [['mujeres',`Áreas con más mujeres (≥${co}%)`],['hombres',`Áreas con más hombres (<${co}%)`]];
+      for(const [key,sub] of parts){ const s=sg[key]; if(!s) continue;
+        h+=`<div class="trsp-strat"><div class="trsp-sub">${sub}</div>`+sankeySVG(d.r1_labels,d.r2_labels,s.T,s.r1)+`</div>`; }
+    }
+    h+=`<div class="sz-note">Estimación por <b>inferencia ecológica R×C a nivel mesa</b> (cada origen reparte 100%). Base = padrón → la <b>abstención</b> es categoría. ${traspSeg!=='total'?'<b>Segmentado ecológicamente</b>: compara el traspaso entre <b>zonas</b> según su composición etaria/de género — describe territorios, no el voto de personas (falacia ecológica).':'Estimación agregada, no voto individual.'}${tu.nota?' '+tu.nota:''}</div></div>`;
     box.innerHTML=h;
+    if(canSeg) box.querySelectorAll('.trsp-b').forEach(b=>b.onclick=()=>{ traspSeg=b.dataset.seg; renderTraspaso(); });
   });
 }
 function traspColor(i,ncand){ return i<ncand?candCol(i):(i===ncand?'#9aa0a6':'#c8ccd0'); } // cand / nulo / abstención
