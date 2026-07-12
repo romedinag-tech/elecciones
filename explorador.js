@@ -1,5 +1,5 @@
 // Explorador territorial electoral — workbench: nivel → unidad → módulos. Elección elegida DENTRO de cada módulo.
-const V='23';
+const V='25';
 const LEVELS=[{k:'nacional',lbl:'Nacional'},{k:'region',lbl:'Región'},{k:'distrito',lbl:'Distrito'},
   {k:'circ_senatorial',lbl:'Circ. sen.'},{k:'metro',lbl:'Z. metro'},{k:'comuna',lbl:'Comuna'}];
 const REG_ORDER=[15,1,2,3,4,5,13,6,7,16,8,9,14,10,11,12];
@@ -361,24 +361,58 @@ function renderEcol(){ const box=document.getElementById('terrbottom');
     box.innerHTML=h;
   });
 }
-function renderSesgos(){ const box=document.getElementById('terrbottom');
-  if(colorby.startsWith('cand:')||colorby==='nulos'){ return renderEcol(); }
-  if(colorby!=='part'){ box.innerHTML=`<div class="sz-hint">Elige <b>Participación</b> (sesgos por edad/género/nacionalidad/NSE) o <b>un candidato / blancos+nulos</b> (sesgos ecológicos con la demografía).</div>`; return; }
-  box.innerHTML='<div class="sz-hint">Cargando sesgos…</div>';
-  Promise.all([ensureSesgos(),ensureTendComuna()]).then(()=>{
-    const s=((SESGOS[level]||{})[unitId]||{})[elecSel];
-    let h=`<div class="sz-title">Sesgos de participación · ${TERR.meta.label} ${elecInfo(elecSel).year} · quién vota más</div><div class="sz-row">`;
-    if(!s){ h+=`<div class="sz-hint">Sin desglose demográfico disponible para esta elección.</div>`; }
-    else{
-      h+=szCard('Edad',[['18–29',s.edad['18-29']],['30–49',s.edad['30-49']],['50–64',s.edad['50-64']],['65+',s.edad['65+']]]);
-      h+=szCard('Género',[['Hombres',s.sexo.H],['Mujeres',s.sexo.M]]);
-      h+=szCard('Nacionalidad',[['Chilenos',s.nac.C],['Extranjeros',s.nac.E]]);
-      const nse=nsePart(); const ord=NSE_ORDER.filter(k=>nse[k]!=null);
-      if(ord.length>1) h+=szCard('Nivel socioec.', ord.map(k=>[k,nse[k]]), 'ecológico (por comuna)');
-    }
-    h+=`</div>`; box.innerHTML=h;
+// ===== estimación de composición demográfica por 3 métodos =====
+const DEMOS=[{k:'muj',lbl:'Género',a:'Mujeres',b:'Hombres',loc:'pct_mujeres',com:'pct_muj',comp:'muj'},
+  {k:'sup',lbl:'Educación superior',a:'Con educ. superior',b:'Sin',loc:'pct_superior',com:'esc_prof',comp:null},
+  {k:'ext',lbl:'Nacionalidad',a:'Extranjeros',b:'Chilenos',loc:'pct_extranjeros',com:'pct_inmig',comp:'ext'}];
+function indWeight(u){ if(colorby==='part') return u.val+(u.nb||0); if(colorby==='nulos') return u.nb||0; if(colorby.startsWith('cand:')) return u.v[+colorby.slice(5)]||0; return 0; }
+function shareOf(u){ if(!u||!u.val) return null;
+  if(colorby==='part') return u.part!=null?u.part/100:null;
+  if(colorby==='nulos'){ const nb=u.nb||0; return nb/(u.val+nb); }
+  if(colorby.startsWith('cand:')) return (u.v[+colorby.slice(5)]||0)/u.val; return null; }
+function methodRows(){ const {geo,data,feats}=terrSub(); const isLocal=geo==='local';
+  return feats.map(f=>{ const id=idOf(f); const u=data[String(id)]; if(!u||!u.val) return null;
+    const soc=isLocal?SOCIO[String(id)]:KPI.comuna[id]; if(!soc) return null;
+    return {w:indWeight(u), share:shareOf(u), pob:(isLocal?soc.pob:soc.pob_2024)||1,
+      d:{muj:soc[isLocal?'pct_mujeres':'pct_muj'], sup:soc[isLocal?'pct_superior':'esc_prof'], ext:soc[isLocal?'pct_extranjeros':'pct_inmig']}}; }).filter(Boolean); }
+function m1(rows,k){ let sw=0,swd=0; rows.forEach(r=>{ if(r.d[k]==null||!r.w) return; sw+=r.w; swd+=r.w*r.d[k]; }); return sw?swd/sw:null; }
+function m2(rows,k){ const pts=rows.filter(r=>r.d[k]!=null&&r.share!=null).map(r=>({x:r.d[k]/100,y:r.share,w:r.pob||1})); if(pts.length<6) return null;
+  const sw=pts.reduce((s,p)=>s+p.w,0); const mx=pts.reduce((s,p)=>s+p.w*p.x,0)/sw, my=pts.reduce((s,p)=>s+p.w*p.y,0)/sw;
+  let sxx=0,sxy=0; pts.forEach(p=>{ sxx+=p.w*(p.x-mx)**2; sxy+=p.w*(p.x-mx)*(p.y-my); }); const b=sxx?sxy/sxx:0, a=my-b*mx;
+  let bD=Math.max(0,Math.min(1,a+b)), bN=Math.max(0,Math.min(1,a)); const F=mx, T=F*bD+(1-F)*bN; return T?100*F*bD/T:null; }
+function donut(pct,la,col){ if(pct==null) return '<div class="sz-hint" style="height:64px">—</div>';
+  const r=25,C=2*Math.PI*r,off=C*(1-Math.max(0,Math.min(100,pct))/100);
+  return `<svg viewBox="0 0 64 64" class="donut"><circle cx="32" cy="32" r="${r}" fill="none" stroke="#e3e8ef" stroke-width="9"/>
+    <circle cx="32" cy="32" r="${r}" fill="none" stroke="${col}" stroke-width="9" stroke-dasharray="${C.toFixed(1)}" stroke-dashoffset="${off.toFixed(1)}" transform="rotate(-90 32 32)"/>
+    <text x="32" y="36" text-anchor="middle" class="donut-v">${pct.toFixed(0)}%</text></svg><div class="donut-lbl">${la}</div>`; }
+function demoCard(D,e1,e2,e3){ const prim=e1!=null?e1:(e2!=null?e2:e3);
+  let h=`<div class="mth-card"><div class="sz-h">${D.lbl}</div>${donut(prim,D.a,'#16365a')}<div class="mth-methods">`;
+  [['1·ecológico',e1],['2·King',e2],['3·votantes',e3]].forEach(([lbl,v])=>{ if(v==null) return; h+=`<div class="mth-m"><span>${lbl}</span><b>${v.toFixed(0)}%</b></div>`; });
+  const vs=[e1,e2,e3].filter(v=>v!=null); if(vs.length>=2){ const sp=Math.max(...vs)-Math.min(...vs);
+    h+=`<div class="mth-conv ${sp<4?'ok':sp<10?'mid':'no'}">${sp<4?'✓ convergen':sp<10?'~ aproximan':'✗ divergen'} · ±${sp.toFixed(0)}pp</div>`; }
+  return h+`</div></div>`; }
+function partRatesHtml(s){ let h=`<div class="ksub" style="margin-top:12px">¿Quién vota más? — tasa de participación por grupo</div><div class="sz-row">`;
+  h+=szCard('Edad',[['18–29',s.edad['18-29']],['30–49',s.edad['30-49']],['50–64',s.edad['50-64']],['65+',s.edad['65+']]]);
+  h+=szCard('Género',[['Hombres',s.sexo.H],['Mujeres',s.sexo.M]]);
+  h+=szCard('Nacionalidad',[['Chilenos',s.nac.C],['Extranjeros',s.nac.E]]);
+  const nse=nsePart(); const ord=NSE_ORDER.filter(k=>nse[k]!=null); if(ord.length>1) h+=szCard('Nivel socioec.', ord.map(k=>[k,nse[k]]),'ecológico');
+  return h+`</div>`; }
+function renderMethods(){ const box=document.getElementById('terrbottom');
+  const eg=effGran(); if(eg==='distrito'||eg==='region'){ box.innerHTML=`<div class="sz-hint">La estimación de composición se hace a nivel <b>polígono</b> o <b>comuna</b>. Cambia la granularidad.</div>`; return; }
+  box.innerHTML='<div class="sz-hint">Estimando…</div>';
+  Promise.all([ensureSocio(),ensureSesgos(),ensureTendComuna()]).then(()=>{
+    const rows=methodRows(); const comp=(((SESGOS[level]||{})[unitId]||{})[elecSel]||{}).comp||{};
+    const ml=colorby==='part'?'la participación':colorby==='nulos'?'los votos blancos+nulos':'el voto de '+cap(TERR.candidatos[+colorby.slice(5)].nombre);
+    let h=`<div class="sz-title">Composición estimada de ${ml} · comparación de métodos (${rows.length} ${granName(eg==='poligono'?'local':'comuna')})</div><div class="mth-row">`;
+    DEMOS.forEach(D=>{ const e3=(colorby==='part'&&D.comp)?(comp[D.comp]??null):null; h+=demoCard(D, m1(rows,D.k), m2(rows,D.k), e3); });
+    h+=`</div><div class="sz-note">M1 inferencia territorial ecológica (composición ponderada por votos) · M2 King/Goodman (regresión ecológica) · M3 composición real de quienes votaron (solo participación). Convergencia entre métodos = tendencia ecológica robusta. Falacia ecológica: describe territorios, no personas.</div>`;
+    if(colorby==='part'){ const s=((SESGOS[level]||{})[unitId]||{})[elecSel]; if(s) h+=partRatesHtml(s); }
+    box.innerHTML=h;
   });
 }
+function renderSesgos(){ const box=document.getElementById('terrbottom');
+  if(colorby==='part'||colorby==='nulos'||colorby.startsWith('cand:')) return renderMethods();
+  box.innerHTML=`<div class="sz-hint">Elige <b>Participación</b>, <b>un candidato</b> o <b>blancos+nulos</b> para estimar la composición demográfica (género, educación, nacionalidad) por 3 métodos.</div>`; }
 function subName(f,geo){ return geo==='local'?(f.properties.recinto||'Local'):geo==='distrito'?('Distrito '+f.properties.distrito_num):geo==='region'?cap(f.properties.region||''):cap(f.properties.comuna||''); }
 function popupSub(f,geo,idp,data){ const u=data[String(f.properties[idp])]; const w=u&&winnerOf(u);
   let h=`<b>${subName(f,geo)}</b><br>`;

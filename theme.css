@@ -295,3 +295,16 @@ main{position:absolute;top:0;left:298px;right:0;bottom:0;display:flex;flex-direc
 #charttype{padding:5px 9px;border:1px solid var(--line-2);border-radius:8px;background:#fff;color:var(--navy);font-size:.78rem;font-weight:600;cursor:pointer}
 .barmk{background:none;border:none}
 .mbar{width:7px;border-radius:2px 2px 0 0;box-shadow:0 0 0 1px rgba(255,255,255,.7);opacity:.92}
+
+/* ---- panel de estimación por 3 métodos (composición demográfica) ---- */
+.mth-row{display:flex;gap:14px;flex-wrap:wrap;margin-top:4px}
+.mth-card{flex:1 1 190px;min-width:180px;background:var(--surface-alt);border:1px solid var(--line);border-radius:var(--r-sm);padding:9px 11px;text-align:center}
+.mth-card .sz-h{text-align:left}
+.donut{width:70px;height:70px;display:block;margin:2px auto 0}
+.donut-v{font-size:15px;font-weight:800;fill:var(--ink);font-family:var(--font-ui)}
+.donut-lbl{font-size:.68rem;color:var(--ink-mid);margin:-2px 0 6px}
+.mth-methods{display:flex;flex-direction:column;gap:2px;text-align:left}
+.mth-m{display:flex;justify-content:space-between;font-size:.72rem;color:var(--ink-mid)}
+.mth-m b{color:var(--ink);font-variant-numeric:tabular-nums}
+.mth-conv{margin-top:5px;font-size:.66rem;font-weight:700;border-radius:5px;padding:2px 6px}
+.mth-conv.ok{background:#e3f1ea;color:#2E8B57} .mth-conv.mid{background:#fbf0e3;color:#C55A11} .mth-conv.no{background:#f7e4e4;color:#B2182B}
