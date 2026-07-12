@@ -1,5 +1,5 @@
 // Explorador territorial electoral — workbench: nivel → unidad → módulos. Elección elegida DENTRO de cada módulo.
-const V='33';
+const V='34';
 const LEVELS=[{k:'nacional',lbl:'Nacional'},{k:'region',lbl:'Región'},{k:'distrito',lbl:'Distrito'},
   {k:'circ_senatorial',lbl:'Circ. sen.'},{k:'metro',lbl:'Z. metro'},{k:'comuna',lbl:'Comuna'}];
 const REG_ORDER=[15,1,2,3,4,5,13,6,7,16,8,9,14,10,11,12];
@@ -204,8 +204,12 @@ function showCandsel(on){ const s=document.getElementById('candsel'); s.style.di
 function buildCandsel(){ const s=document.getElementById('candsel'); s.innerHTML='';
   TERR.candidatos.slice(0,20).forEach(c=>{ const o=document.createElement('option'); o.value='cand:'+c.i; o.textContent=cap(c.nombre); s.appendChild(o); });
   s.onchange=e=>{ colorby=e.target.value; buildIndics(); renderT(); }; }
+const MANZ={};  // cache de geojson de manzanas por cut
+function ensureManz(cut){ if(MANZ[cut]!==undefined) return Promise.resolve();
+  return fetch('data/manzanas/'+cut+'.geojson?v='+V).then(r=>r.ok?r.json():null).then(d=>{MANZ[cut]=d;}).catch(()=>{MANZ[cut]=null;}); }
 function buildGranul(){ const s=document.getElementById('granul'); const opts=[];
-  if(TERR.meta.has_local&&AREAS) opts.push(['poligono','Polígono (local)']);
+  if(TERR.meta.has_local&&AREAS){ opts.push(['poligono','Polígono (local)']);
+    if(level==='comuna') opts.push(['manzana','Manzana (censal)']); }  // manzana: solo comuna (1 archivo)
   opts.push(['comuna','Comuna'],['distrito','Distrito'],['region','Región']);
   s.innerHTML=opts.map(([v,t])=>`<option value="${v}">${t}</option>`).join('');
   if(!opts.some(o=>o[0]===granul)) granul=opts[0][0];
@@ -225,9 +229,11 @@ function aggToLevel(kind){ const cuts=unitCuts(); const out={}; const key=kind==
 function effGran(){ let g=granul;
   if(colorby==='swing'||colorby==='split') g='comuna';
   if(colorby==='consist'&&(g==='distrito'||g==='region')) g='comuna';
+  if(g==='manzana'&&(level!=='comuna'||!(TERR.meta.has_local&&AREAS))) g='poligono';  // manzana solo a nivel comuna
   if(g==='poligono'&&!(TERR.meta.has_local&&AREAS)) g='comuna'; return g; }
-function granName(geo){ return geo==='local'?'locales':geo==='distrito'?'distritos':geo==='region'?'regiones':'comunas'; }
+function granName(geo){ return geo==='manzana'?'manzanas':geo==='local'?'locales':geo==='distrito'?'distritos':geo==='region'?'regiones':'comunas'; }
 function terrSub(){ const cuts=unitCuts(); const g=effGran();
+  if(g==='manzana'){ const mz=MANZ[unitId]; return {geo:'manzana', idp:'codigo_rec', data:TERR.local, feats:mz?mz.features:[]}; }
   if(g==='poligono') return {geo:'local', idp:'codigo_rec', data:TERR.local, feats:AREAS.features.filter(f=>!cuts||cuts.has(+f.properties.cut))};
   if(g==='comuna') return {geo:'comuna', idp:'cut', data:TERR.comuna, feats:GEOCOM.features.filter(f=>!cuts||cuts.has(+f.properties.cut))};
   if(g==='distrito'){ const data=aggToLevel('dist'); return {geo:'distrito', idp:'distrito_num', data, feats:(GEOMS.distrito?GEOMS.distrito.features:[]).filter(f=>data[f.properties.distrito_num]!=null)}; }
@@ -289,6 +295,7 @@ function divCol(v){ if(v==null) return '#e5e5e5'; const m=(seqRange&&seqRange.ab
 function renderT(){
   const eg=effGran();
   if((eg==='distrito'||eg==='region') && !GEOMS[eg]){ ensureGeom(eg).then(renderT); return; }
+  if(eg==='manzana' && MANZ[unitId]===undefined){ document.getElementById('resumen').innerHTML='Cargando manzanas…'; ensureManz(unitId).then(renderT); return; }
   if((colorby==='swing'||colorby==='split') && !TENDCACHE['comuna']){ ensureTendComuna().then(renderT); return; }
   if(colorby==='consist'){ const r=rounds(elecSel); if(!TERRCACHE[r.v1]||!TERRCACHE[r.v2]){ Promise.all([fetchTerr(r.v1),fetchTerr(r.v2)]).then(renderT); return; } }
   if(layer){ map.removeLayer(layer); layer=null; }
@@ -531,7 +538,7 @@ function sankeySVG(r1l,r2l,T,r1){
     s+=`<text x="${x1+nodeW+4}" y="${p.y+p.h/2+13}" text-anchor="start" font-size="8" fill="#999">${(100*colTot[j]/totR2).toFixed(0)}%</text>`; });
   return s+`</svg>`;
 }
-function subName(f,geo){ return geo==='local'?(f.properties.recinto||'Local'):geo==='distrito'?('Distrito '+f.properties.distrito_num):geo==='region'?cap(f.properties.region||''):cap(f.properties.comuna||''); }
+function subName(f,geo){ return geo==='manzana'?'Manzana (hereda del local)':geo==='local'?(f.properties.recinto||'Local'):geo==='distrito'?('Distrito '+f.properties.distrito_num):geo==='region'?cap(f.properties.region||''):cap(f.properties.comuna||''); }
 function popupSub(f,geo,idp,data){ const u=data[String(f.properties[idp])]; const w=u&&winnerOf(u);
   let h=`<b>${subName(f,geo)}</b><br>`;
   if(colorby==='swing'||colorby==='split'){ const dv=DIVMAP[+f.properties.cut];
