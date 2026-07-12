@@ -327,3 +327,9 @@ main{position:absolute;top:0;left:298px;right:0;bottom:0;display:flex;flex-direc
 .mth-mrow b{color:var(--ink-mid)}
 .mth-subt{font-size:.68rem;color:var(--ink-lo);margin:2px 0 10px;line-height:1.4}
 .mth-pad{padding:2px 0 10px}
+
+.mth-tag{font-size:.6rem;font-weight:700;text-transform:uppercase;letter-spacing:.3px;background:var(--line);color:var(--ink-mid);border-radius:5px;padding:1px 6px;white-space:nowrap}
+.mth-tag.real{background:#e3f1ea;color:#2E8B57}
+.mth-card.unrel{opacity:.85;border-style:dashed}
+.mth-unrel{font-size:.72rem;color:var(--or);line-height:1.45;background:#fbf0e3;border-radius:6px;padding:7px 9px;margin:4px 0}
+.mth-mrow .mreal{color:#2E8B57}

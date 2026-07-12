@@ -1,5 +1,5 @@
 // Explorador territorial electoral — workbench: nivel → unidad → módulos. Elección elegida DENTRO de cada módulo.
-const V='27';
+const V='29';
 const LEVELS=[{k:'nacional',lbl:'Nacional'},{k:'region',lbl:'Región'},{k:'distrito',lbl:'Distrito'},
   {k:'circ_senatorial',lbl:'Circ. sen.'},{k:'metro',lbl:'Z. metro'},{k:'comuna',lbl:'Comuna'}];
 const REG_ORDER=[15,1,2,3,4,5,13,6,7,16,8,9,14,10,11,12];
@@ -367,7 +367,7 @@ function renderEcol(){ const box=document.getElementById('terrbottom');
 function eiFit(pts){ const P=pts.filter(p=>p.x!=null&&p.y!=null&&isFinite(p.x)&&isFinite(p.y)&&p.w>0); if(P.length<6) return null;
   let sw=0,Suu=0,Svv=0,Suv=0,Suy=0,Svy=0,mx=0,my=0;
   P.forEach(p=>{ const u=p.x,v=1-p.x; sw+=p.w; Suu+=p.w*u*u; Svv+=p.w*v*v; Suv+=p.w*u*v; Suy+=p.w*u*p.y; Svy+=p.w*v*p.y; mx+=p.w*p.x; my+=p.w*p.y; });
-  mx/=sw; my/=sw; let vx=0; P.forEach(p=>vx+=p.w*(p.x-mx)**2); const noVar=vx/sw<1e-4;
+  mx/=sw; my/=sw; let vx=0; P.forEach(p=>vx+=p.w*(p.x-mx)**2); const sdx=Math.sqrt(vx/sw); const noVar=vx/sw<1e-4;
   const det=Suu*Svv-Suv*Suv; let gA=my,gB=my;
   if(!noVar&&Math.abs(det)>1e-12){ gA=(Svv*Suy-Suv*Svy)/det; gB=(Suu*Svy-Suv*Suy)/det; }
   let cA=my,cB=my;  // LS restringido: búsqueda en grilla refinada dentro de [0,1]²
@@ -377,7 +377,7 @@ function eiFit(pts){ const P=pts.filter(p=>p.x!=null&&p.y!=null&&isFinite(p.x)&&
         for(const p of P){ const yh=p.x*a+(1-p.x)*b; sse+=p.w*(p.y-yh)**2; } if(!best||sse<best.sse) best={a,b,sse}; }
       rA=[Math.max(0,best.a-stA),Math.min(1,best.a+stA)]; rB=[Math.max(0,best.b-stB),Math.min(1,best.b+stB)]; }
     cA=best.a; cB=best.b; }
-  return {gA,gB,cA,cB,F:mx,noVar}; }
+  return {gA,gB,cA,cB,F:mx,sdx,noVar}; }
 // Nelder-Mead genérico (reutilizable para MLE/optimización)
 function nelderMead(f,x0,maxIter){ const n=x0.length,al=1,ga=2,rh=0.5,si=0.5;
   let S=[x0.slice()]; for(let i=0;i<n;i++){ const p=x0.slice(); p[i]+=(Math.abs(p[i])>1e-6?0.1*Math.abs(p[i]):0.1); S.push(p); }
@@ -418,24 +418,34 @@ function methodRows(){ const {geo,data,feats}=terrSub(); const isLocal=geo==='lo
     return {y, pob:(isLocal?soc.pob:soc.pob_2024)||1,
       d:{muj:soc[isLocal?'pct_mujeres':'pct_muj'], sup:soc[isLocal?'pct_superior':'esc_prof'], ext:soc[isLocal?'pct_extranjeros':'pct_inmig']}}; }).filter(Boolean); }
 function fmtpp(v){ return v==null?'—':(v>0?'+':'')+v.toFixed(0)+'pp'; }
+function fmtppCap(v){ if(v==null) return '—'; if(Math.abs(v)>100) return (v>0?'+':'−')+'>100pp'; return (v>0?'+':'')+v.toFixed(0)+'pp'; }
 function demoCard(D,rows,s){ const pts=rows.filter(r=>r.d[D.k]!=null&&r.y!=null).map(r=>({x:r.d[D.k]/100,y:r.y,w:r.pob}));
   const fit=eiFit(pts);
   if(!fit) return `<div class="mth-card"><div class="sz-h">${D.lbl}</div><div class="sz-hint">datos insuficientes</div></div>`;
   const king=kingEI(pts);
   const verb=colorby==='part'?'votó':colorby==='nulos'?'votó nulo/blanco':'votó por '+cap(TERR.candidatos[+colorby.slice(5)].ape1||'');
-  // primario = King (estándar de oro); si no, LS restringido
-  const rA=(king?king.A:fit.cA)*100, rB=(king?king.B:fit.cB)*100, gapK=rA-rB;
-  const F=fit.F*100, gapC=(fit.cA-fit.cB)*100, gapG=(fit.gA-fit.gB)*100;
-  const m3=colorby==='part'&&D.m3(s); const gapM3=(m3&&m3[0]!=null&&m3[1]!=null)?m3[0]-m3[1]:null;
-  const gaps=[gapK,gapC,gapM3].filter(v=>v!=null); const conv=gaps.length>=2?Math.max(...gaps)-Math.min(...gaps):null;
-  let h=`<div class="mth-card"><div class="sz-h">${D.lbl}</div>`;
-  h+=`<div class="mth-share"><b>${D.A}</b> = ${F.toFixed(0)}% de la población · de ese grupo, <b>${rA.toFixed(0)}%</b> ${verb}</div>`;
-  h+=`<div class="mth-rates">`+
-     `<div class="mrate"><span class="ml">${D.A}</span><span class="mt"><i style="width:${Math.min(100,rA)}%;background:#16365a"></i></span><span class="mv">${rA.toFixed(0)}%</span></div>`+
-     `<div class="mrate"><span class="ml">${D.B}</span><span class="mt"><i style="width:${Math.min(100,rB)}%;background:#9aa0a6"></i></span><span class="mv">${rB.toFixed(0)}%</span></div></div>`;
-  h+=`<div class="mth-gap" style="color:${gapK>=0?'#B2182B':'#2166ac'}">Sesgo ${D.A.split(' ')[0]}−${D.B.split(' ')[0]}: ${gapK>0?'+':''}${gapK.toFixed(0)} pp</div>`;
-  h+=`<div class="mth-mrow">por método: <b>King</b> ${fmtpp(gapK)} · <b>Goodman</b> ${fmtpp(gapG)} · <b>LS restr.</b> ${fmtpp(gapC)}${gapM3!=null?` · <b>Real</b> ${fmtpp(gapM3)}`:''}</div>`;
-  if(conv!=null) h+=`<div class="mth-conv ${conv<4?'ok':conv<10?'mid':'no'}">${conv<4?'✓ convergen':conv<10?'~ aproximan':'✗ divergen'} · ±${conv.toFixed(0)}pp</div>`;
+  const F=fit.F*100;
+  const gapK=king?(king.A-king.B)*100:null, gapC=(fit.cA-fit.cB)*100, gapG=(fit.gA-fit.gB)*100;
+  const m3=colorby==='part'&&D.m3(s); const hasReal=!!(m3&&m3[0]!=null&&m3[1]!=null); const gapR=hasReal?m3[0]-m3[1]:null;
+  // titular: si existe dato REAL (participación), ese manda; si no, King, salvo que la estimación sea poco fiable
+  let rA,rB,gap,tag,reliable=true; const gEco = gapK!=null?gapK:gapC;
+  if(hasReal){ rA=m3[0]; rB=m3[1]; gap=gapR; tag='dato real'; }
+  else { rA=(king?king.A:fit.cA)*100; rB=(king?king.B:fit.cB)*100; gap=gEco;
+    // fiable si: King y LS coinciden, el sesgo es plausible, y el grupo VARÍA lo suficiente en el territorio (identificable)
+    reliable = Math.abs((gapK!=null?gapK:gapC)-gapC)<10 && Math.abs(gEco)<=40 && fit.sdx>=0.012; tag=reliable?'estimación (King)':'poco fiable'; }
+  let h=`<div class="mth-card${!reliable?' unrel':''}"><div class="sz-h">${D.lbl}</div>`;
+  h+=`<div class="mth-share"><b>${D.A}</b> = ${F.toFixed(0)}% de la población${reliable?` · de ese grupo, <b>${rA.toFixed(0)}%</b> ${verb}`:''} <span class="mth-tag${hasReal?' real':''}">${tag}</span></div>`;
+  if(reliable){
+    h+=`<div class="mth-rates">`+
+       `<div class="mrate"><span class="ml">${D.A}</span><span class="mt"><i style="width:${Math.min(100,rA)}%;background:#16365a"></i></span><span class="mv">${rA.toFixed(0)}%</span></div>`+
+       `<div class="mrate"><span class="ml">${D.B}</span><span class="mt"><i style="width:${Math.min(100,rB)}%;background:#9aa0a6"></i></span><span class="mv">${rB.toFixed(0)}%</span></div></div>`;
+    h+=`<div class="mth-gap" style="color:${gap>=0?'#B2182B':'#2166ac'}">Sesgo ${D.A.split(' ')[0]}−${D.B.split(' ')[0]}: ${gap>0?'+':''}${gap.toFixed(0)} pp</div>`;
+  } else {
+    h+=`<div class="mth-unrel">⚠ Estimación territorial <b>poco fiable</b> a esta escala (los métodos no coinciden). Sin dato real no es concluyente — haz zoom a una comuna.</div>`;
+  }
+  h+=`<div class="mth-mrow">${hasReal?'estima el sesgo':'estimaciones'}: <b>King</b> ${fmtppCap(gapK)} · <b>Goodman</b> ${fmtppCap(gapG)} · <b>LS</b> ${fmtppCap(gapC)}${hasReal?` · <b class="mreal">Real</b> ${fmtpp(gapR)}`:''}</div>`;
+  if(hasReal){ const d=Math.abs(gEco-gapR); h+=`<div class="mth-conv ${d<5?'ok':d<15?'mid':'no'}">${d<5?'✓ la estimación recupera el dato real':d<15?'~ estimación aproximada':'✗ la estimación NO recupera el real'}</div>`; }
+  else if(gapK!=null){ const d=Math.abs(gapK-gapC); h+=`<div class="mth-conv ${d<5?'ok':d<12?'mid':'no'}">${d<5?'✓ King y LS coinciden':d<12?'~ aproximan':'✗ métodos discrepan'}</div>`; }
   return h+`</div>`; }
 function renderMethods(){ const box=document.getElementById('terrside');
   const eg=effGran(); if(eg==='distrito'||eg==='region'){ box.innerHTML=`<div class="mth-pad"><div class="sz-hint">La estimación de sesgos se hace a nivel <b>polígono</b> o <b>comuna</b>. Cambia la granularidad.</div></div>`; return; }
