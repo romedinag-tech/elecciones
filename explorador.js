@@ -1,5 +1,5 @@
 // Explorador territorial electoral — workbench: nivel → unidad → módulos. Elección elegida DENTRO de cada módulo.
-const V='31';
+const V='32';
 const LEVELS=[{k:'nacional',lbl:'Nacional'},{k:'region',lbl:'Región'},{k:'distrito',lbl:'Distrito'},
   {k:'circ_senatorial',lbl:'Circ. sen.'},{k:'metro',lbl:'Z. metro'},{k:'comuna',lbl:'Comuna'}];
 const REG_ORDER=[15,1,2,3,4,5,13,6,7,16,8,9,14,10,11,12];
@@ -188,9 +188,10 @@ function openElecPanel(){ const p=document.getElementById('elecpanel');
 function indicList(){ const L=[{k:'winner',lbl:'Ganador'},{k:'part',lbl:'Participación'},{k:'cand',lbl:'Candidato'},{k:'nulos',lbl:'Blancos+nulos'},{k:'margen',lbl:'Margen 1º-2º'}];
   if(prevSameType(elecSel)) L.push({k:'swing',lbl:'Swing'});
   if(partnerOf(elecSel)) L.push({k:'split',lbl:'Voto cruzado'});
-  // 'consist' (consistencia 1ª/2ª) retirado 2026-07-12: poco comprensible; se reemplazará por traspaso de votos (matriz de transición + Sankey)
+  // 'consist' (consistencia 1ª/2ª) retirado 2026-07-12; reemplazado por 'traspaso' (matriz de transición + Sankey)
+  if(hasRounds(elecSel)) L.push({k:'traspaso',lbl:'Traspaso de votos'});
   return L; }
-function validColorby(){ const s=new Set(['winner','part','nulos','margen']); if(prevSameType(elecSel))s.add('swing'); if(partnerOf(elecSel))s.add('split'); return s; }
+function validColorby(){ const s=new Set(['winner','part','nulos','margen']); if(prevSameType(elecSel))s.add('swing'); if(partnerOf(elecSel))s.add('split'); if(hasRounds(elecSel))s.add('traspaso'); return s; }
 function buildIndics(){ const box=document.getElementById('indics'); box.innerHTML='';
   if(!(colorby.startsWith('cand:')||validColorby().has(colorby))) colorby='winner';
   indicList().forEach(I=>{ const b=document.createElement('button'); b.className='ind-btn'; b.textContent=I.lbl;
@@ -244,7 +245,7 @@ function seqCol(v){ if(v==null) return '#e5e5e5'; const r=seqRange; if(!r||r.hi=
 function idOf(f){ return f.properties.codigo_rec!=null?f.properties.codigo_rec:f.properties.cut; }
 function colorFeat(u,f){ if(colorby==='consist') return consistCol(CONSIST[String(idOf(f))]);
   if(colorby==='swing'||colorby==='split') return divCol(DIVMAP[+f.properties.cut]);
-  if(colorby==='winner'){ const w=winnerOf(u); return w?candCol(w.i):'#e5e5e5'; } return seqCol(metricVal(u)); }
+  if(colorby==='winner'||colorby==='traspaso'){ const w=winnerOf(u); return w?candCol(w.i):'#e5e5e5'; } return seqCol(metricVal(u)); }
 
 // ---- consistencia 1ª/2ª vuelta (bloque ganador se repite entre rondas) ----
 let CONSIST={}, CONSIST_PCT=null;
@@ -295,7 +296,7 @@ function renderT(){
   if(!feats.length){ document.getElementById('resumen').innerHTML='Sin sub-unidades para mapear.'; return; }
   if(colorby==='swing'||colorby==='split') computeDivMap(feats);
   else if(colorby==='consist') computeConsist(feats,geo);
-  else if(colorby!=='winner'){ const vals=feats.map(f=>metricVal(data[String(f.properties[idp])])).filter(v=>v!=null);
+  else if(colorby!=='winner'&&colorby!=='traspaso'){ const vals=feats.map(f=>metricVal(data[String(f.properties[idp])])).filter(v=>v!=null);
     seqRange={lo:pctl(vals,.05),hi:pctl(vals,.95)}; }
   const barsMode = chartType==='barras' && barsApplicable() && feats.length<=700;
   const w0=geo==='local'?.7:geo==='comuna'?.6:.8;
@@ -456,8 +457,80 @@ function renderMethods(){ const box=document.getElementById('terrside');
   });
 }
 function renderRight(geo,feats,idp,data){
+  if(colorby==='traspaso') return renderTraspaso();
   if(colorby==='part'||colorby==='nulos'||colorby.startsWith('cand:')) return renderMethods();
   return renderSummary(geo,feats,idp,data); }
+
+// ===== TRASPASO DE VOTOS 1ª→2ª vuelta (matriz de transición + Sankey) =====
+let TRASP={};
+function traspKey(){ const r=rounds(elecSel); return r.v1&&r.v2?r.v1+'__'+r.v2:null; }
+function ensureTrasp(k){ if(TRASP[k]!==undefined) return Promise.resolve();
+  return fetch('data/traspaso/'+k+'.json?v='+V).then(r=>r.ok?r.json():null).then(d=>{TRASP[k]=d;}).catch(()=>{TRASP[k]=null;}); }
+function traspUnit(d){ // devuelve {T,r1,nivel,nota} para la unidad seleccionada
+  if(!d) return null; const lv=d.levels;
+  if(level==='nacional') return {u:lv.nacional&&lv.nacional['CL'],nivel:'país'};
+  if(level==='comuna') return {u:lv.comuna&&lv.comuna[String(unitId)],nivel:'comuna'};
+  if(level==='region'){ const cuts=unitCuts(); const any=cuts&&[...cuts][0]; const rid=any?Math.floor(any/1000):null;
+    return {u:rid!=null&&lv.region&&lv.region[String(rid)],nivel:'región'}; }
+  return {u:lv.nacional&&lv.nacional['CL'],nivel:'país',nota:'No desagregado a este nivel; se muestra el total nacional.'}; }
+function renderTraspaso(){ const box=document.getElementById('terrside'); const k=traspKey();
+  if(!k){ box.innerHTML='<div class="mth-pad"><div class="sz-hint">Sin par de vueltas para esta elección.</div></div>'; return; }
+  box.innerHTML='<div class="mth-pad"><div class="sz-hint">Cargando traspaso…</div></div>';
+  ensureTrasp(k).then(()=>{ const d=TRASP[k];
+    if(!d){ box.innerHTML='<div class="mth-pad"><div class="sz-hint">Datos de traspaso no disponibles.</div></div>'; return; }
+    const tu=traspUnit(d);
+    if(!tu||!tu.u){ box.innerHTML=`<div class="mth-pad"><div class="sz-hint">Sin estimación de traspaso para esta unidad (pocas mesas).</div></div>`; return; }
+    const r=rounds(elecSel);
+    let h=`<div class="mth-pad"><div class="sz-title">Traspaso de votos 1ª → 2ª vuelta</div>`+
+      `<div class="mth-subt">${elecInfo(r.v1).label} ${elecInfo(r.v1).year} → 2ª vuelta · ${cap(((KPI[level]||{})[unitId]||{}).nombre||'')} · a nivel <b>${tu.nivel}</b></div>`;
+    h+=sankeySVG(d.r1_labels,d.r2_labels,tu.u.T,tu.u.r1);
+    h+=`<div class="sz-note">Estimación por <b>inferencia ecológica R×C a nivel mesa</b> (mínimos cuadrados restringidos: cada origen reparte 100% entre los destinos). Base = padrón (inscritos) → la <b>abstención</b> es una categoría. Es estimación agregada, no voto individual (secreto).${tu.nota?' '+tu.nota:''}</div></div>`;
+    box.innerHTML=h;
+  });
+}
+function traspColor(i,ncand){ return i<ncand?candCol(i):(i===ncand?'#9aa0a6':'#c8ccd0'); } // cand / nulo / abstención
+function sankeySVG(r1l,r2l,T,r1){
+  const W=344, padT=8, nodeW=9, gap=6, lblL=78, lblR=78;
+  const x0=lblL, x1=W-lblR;                     // banda entre columnas
+  const total=r1.reduce((s,v)=>s+v,0)||1;
+  // valores destino
+  const R1=r1l.length, R2=r2l.length;
+  const colTot=r2l.map((_,j)=>r1.reduce((s,_,i)=>s+r1[i]*T[i][j],0));
+  const totR2=colTot.reduce((s,v)=>s+v,0)||1;
+  // filtrar orígenes/destinos con peso ínfimo
+  const srcIdx=r1l.map((_,i)=>i).filter(i=>r1[i]/total>=0.01);
+  const dstIdx=r2l.map((_,j)=>j).filter(j=>colTot[j]/totR2>=0.005);
+  const H=Math.max(240, srcIdx.length*30);
+  const usableL=H-2*padT-(srcIdx.length-1)*gap, usableR=H-2*padT-(dstIdx.length-1)*gap;
+  const sc=(H-2*padT-(srcIdx.length-1)*gap)/total, scR=(H-2*padT-(dstIdx.length-1)*gap)/totR2;
+  // posiciones verticales de nodos
+  const ncand1=R1-2, ncand2=R2-2;
+  let y=padT; const posL={}; srcIdx.forEach(i=>{ const hgt=Math.max(2,r1[i]*sc); posL[i]={y,h:hgt,off:0}; y+=hgt+gap; });
+  y=padT; const posR={}; dstIdx.forEach(j=>{ const hgt=Math.max(2,colTot[j]*scR); posR[j]={y,h:hgt,off:0}; y+=hgt+gap; });
+  let s=`<svg viewBox="0 0 ${W} ${H}" width="100%" style="display:block;margin:6px 0">`;
+  // flujos (ordenados por destino para apilar limpio)
+  const flows=[];
+  srcIdx.forEach(i=>dstIdx.forEach(j=>{ const val=r1[i]*T[i][j]; if(val/total>=0.004) flows.push({i,j,val}); }));
+  flows.sort((a,b)=> a.i-b.i || a.j-b.j);
+  // apilar en origen por j asc, en destino por i asc
+  flows.forEach(fl=>{
+    const L=posL[fl.i], R=posR[fl.j]; const wL=fl.val*sc, wR=fl.val*scR;
+    const y1=L.y+L.off+wL/2, y2=R.y+R.off+wR/2; L.off+=wL; R.off+=wR;
+    const xm=(x0+x1)/2;
+    s+=`<path d="M${x0} ${y1} C${xm} ${y1} ${xm} ${y2} ${x1} ${y2}" fill="none" stroke="${traspColor(fl.i,ncand1)}" stroke-width="${Math.max(1,fl.val*sc)}" stroke-opacity="0.42"/>`;
+  });
+  // nodos + etiquetas
+  const short=l=>{ l=cap(l); return l.length>13?l.slice(0,12)+'…':l; };
+  srcIdx.forEach(i=>{ const p=posL[i];
+    s+=`<rect x="${x0-nodeW}" y="${p.y}" width="${nodeW}" height="${p.h}" fill="${traspColor(i,ncand1)}" rx="2"/>`;
+    s+=`<text x="${x0-nodeW-4}" y="${p.y+p.h/2+3}" text-anchor="end" font-size="9.5" fill="#333">${short(r1l[i])}</text>`;
+    s+=`<text x="${x0-nodeW-4}" y="${p.y+p.h/2+13}" text-anchor="end" font-size="8" fill="#999">${(100*r1[i]/total).toFixed(0)}%</text>`; });
+  dstIdx.forEach(j=>{ const p=posR[j];
+    s+=`<rect x="${x1}" y="${p.y}" width="${nodeW}" height="${p.h}" fill="${traspColor(j,ncand2)}" rx="2"/>`;
+    s+=`<text x="${x1+nodeW+4}" y="${p.y+p.h/2+3}" text-anchor="start" font-size="9.5" fill="#333">${short(r2l[j])}</text>`;
+    s+=`<text x="${x1+nodeW+4}" y="${p.y+p.h/2+13}" text-anchor="start" font-size="8" fill="#999">${(100*colTot[j]/totR2).toFixed(0)}%</text>`; });
+  return s+`</svg>`;
+}
 function subName(f,geo){ return geo==='local'?(f.properties.recinto||'Local'):geo==='distrito'?('Distrito '+f.properties.distrito_num):geo==='region'?cap(f.properties.region||''):cap(f.properties.comuna||''); }
 function popupSub(f,geo,idp,data){ const u=data[String(f.properties[idp])]; const w=u&&winnerOf(u);
   let h=`<b>${subName(f,geo)}</b><br>`;
@@ -485,6 +558,7 @@ function colLabel(){ if(colorby==='winner') return 'ganador'; if(colorby==='part
   if(colorby==='consist') return 'consistencia 1ª/2ª vuelta';
   if(colorby==='swing') return 'swing vs '+(DIVREF?elecInfo(DIVREF).year:'anterior');
   if(colorby==='split') return 'voto cruzado vs '+(DIVREF?cap(elecInfo(DIVREF).label):'—');
+  if(colorby==='traspaso') return 'ganador (fondo) — traspaso en el panel';
   return '% '+cap(TERR.candidatos[+colorby.slice(5)].nombre); }
 function renderResumen(geo,n){ const o=(KPI[level]||{})[unitId]||{};
   let extra='';
@@ -504,8 +578,8 @@ function renderLeg(){ const el=document.getElementById('leg2');
       `<span class="lg"><i style="background:#2166ac"></i>← izq. −${m.toFixed(0)}</span>`+
       `<span class="lg"><i style="background:#f7f7f7;border:1px solid #ccc"></i>0</span>`+
       `<span class="lg"><i style="background:#b2182b"></i>der. +${m.toFixed(0)} →</span>`; return; }
-  if(colorby==='winner'){ const used={}; Object.keys(TERR.local||TERR.comuna).length;
-    // leyenda por bloque + opciones presentes
+  if(colorby==='winner'||colorby==='traspaso'){ const used={}; Object.keys(TERR.local||TERR.comuna).length;
+    // leyenda por bloque + opciones presentes (el mapa muestra el ganador de fondo; el traspaso va en el panel)
     el.innerHTML=Object.entries(BLOQCOL).map(([b,c])=>`<span class="lg"><i style="background:${c}"></i>${b}</span>`).join('')
       +'<span class="lg"><i style="background:#3F8E86"></i>Apruebo</span><span class="lg"><i style="background:#C55A11"></i>Rechazo</span>';
   } else { const r=seqRange||{}; const suf=colorby==='margen'?'pp':'%'; const f=v=>v==null?'—':v.toFixed(colorby==='part'?0:1)+suf;
