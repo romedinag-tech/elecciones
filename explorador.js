@@ -1,5 +1,5 @@
 // Explorador territorial electoral — workbench: nivel → unidad → módulos. Elección elegida DENTRO de cada módulo.
-const V='37';
+const V='38';
 const LEVELS=[{k:'nacional',lbl:'Nacional'},{k:'region',lbl:'Región'},{k:'distrito',lbl:'Distrito'},
   {k:'circ_senatorial',lbl:'Circ. sen.'},{k:'metro',lbl:'Z. metro'},{k:'comuna',lbl:'Comuna'}];
 const REG_ORDER=[15,1,2,3,4,5,13,6,7,16,8,9,14,10,11,12];
@@ -204,15 +204,15 @@ function openElecPanel(){ const p=document.getElementById('elecpanel');
     yr.appendChild(wrap); p.appendChild(yr); });
   p.style.display='block'; }
 function indicList(){ const L=[{k:'winner',lbl:'Ganador'},{k:'part',lbl:'Participación'},{k:'cand',lbl:'Candidato'},{k:'nulos',lbl:'Blancos+nulos'},{k:'margen',lbl:'Margen 1º-2º'}];
-  if(prevSameType(elecSel)) L.push({k:'swing',lbl:'Swing'});
-  if(partnerOf(elecSel)) L.push({k:'split',lbl:'Voto cruzado'});
-  // 'consist' (consistencia 1ª/2ª) retirado 2026-07-12; reemplazado por 'traspaso' (matriz de transición + Sankey)
+  // Swing y Voto cruzado MOVIDOS a Análisis tendencial (spec 2026-07-12). 'consist' retirado antes.
   if(hasRounds(elecSel)) L.push({k:'traspaso',lbl:'Traspaso de votos'});
+  L.push({k:'vdc',lbl:'Voto duro/coalición',soon:1});  // llega desde Tendencial → placeholder deshabilitado
   return L; }
-function validColorby(){ const s=new Set(['winner','part','nulos','margen']); if(prevSameType(elecSel))s.add('swing'); if(partnerOf(elecSel))s.add('split'); if(hasRounds(elecSel))s.add('traspaso'); return s; }
+function validColorby(){ const s=new Set(['winner','part','nulos','margen']); if(hasRounds(elecSel))s.add('traspaso'); return s; }
 function buildIndics(){ const box=document.getElementById('indics'); box.innerHTML='';
   if(!(colorby.startsWith('cand:')||validColorby().has(colorby))) colorby='winner';
-  indicList().forEach(I=>{ const b=document.createElement('button'); b.className='ind-btn'; b.textContent=I.lbl;
+  indicList().forEach(I=>{ const b=document.createElement('button'); b.className='ind-btn'+(I.soon?' soon':''); b.textContent=I.lbl+(I.soon?' ·':'');
+    if(I.soon){ b.disabled=true; b.title='Llega desde Análisis tendencial (próximamente)'; box.appendChild(b); return; }
     if(I.k==='cand'?colorby.startsWith('cand:'):colorby===I.k) b.classList.add('on');
     b.onclick=()=>{ if(I.k==='cand'){ colorby='cand:'+candselVal(); showCandsel(true); } else { colorby=I.k; showCandsel(false); } buildIndics(); renderT(); };
     box.appendChild(b); });
