@@ -1,5 +1,5 @@
 // Explorador territorial electoral — workbench: nivel → unidad → módulos. Elección elegida DENTRO de cada módulo.
-const V='35';
+const V='36';
 const LEVELS=[{k:'nacional',lbl:'Nacional'},{k:'region',lbl:'Región'},{k:'distrito',lbl:'Distrito'},
   {k:'circ_senatorial',lbl:'Circ. sen.'},{k:'metro',lbl:'Z. metro'},{k:'comuna',lbl:'Comuna'}];
 const REG_ORDER=[15,1,2,3,4,5,13,6,7,16,8,9,14,10,11,12];
@@ -164,8 +164,25 @@ function renderCbody(){ const o=(KPI[level]||{})[unitId]; const p=document.getEl
 // =================== MÓDULO Análisis territorial ===================
 function ensureMap(){ if(map) return;
   map=L.map('map',{preferCanvas:true,minZoom:3}).setView([-35.5,-71.3],5);
-  L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png',
-    {attribution:'&copy; OpenStreetMap &copy; CARTO',subdomains:'abcd',maxZoom:19}).addTo(map);
+  // capas base: Mapa (CARTO) / Satélite (Esri World Imagery) — mismo montaje que el visor de uso de suelo
+  const claro=L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png',
+    {attribution:'&copy; OpenStreetMap &copy; CARTO',subdomains:'abcd',maxZoom:19});
+  const sat=L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
+    {attribution:'Imagery &copy; Esri, Maxar, Earthstar Geographics',maxZoom:19});
+  const labels=L.tileLayer('https://{s}.basemaps.cartocdn.com/light_only_labels/{z}/{x}/{y}{r}.png',
+    {subdomains:'abcd',maxZoom:19,pane:'shadowPane'});  // etiquetas de calles/lugares sobre satélite
+  claro.addTo(map);
+  L.control.layers({'Mapa':claro,'Satélite':sat},null,{position:'topright',collapsed:true}).addTo(map);
+  map.on('baselayerchange',e=>{ if(e.name==='Satélite'){ labels.addTo(map); } else { map.removeLayer(labels); } });
+  // pantalla completa
+  const fc=L.control({position:'topleft'});
+  fc.onAdd=function(){ const d=L.DomUtil.create('div','leaflet-bar'); const a=L.DomUtil.create('a','',d);
+    a.href='#'; a.title='Pantalla completa'; a.style.cssText='font-size:15px;font-weight:700;text-align:center'; a.innerHTML='⛶';
+    L.DomEvent.on(a,'click',function(ev){ L.DomEvent.stop(ev); const el=map.getContainer();
+      if(!document.fullscreenElement){ (el.requestFullscreen||el.webkitRequestFullscreen||function(){}).call(el); }
+      else { (document.exitFullscreen||document.webkitExitFullscreen||function(){}).call(document); }
+      setTimeout(()=>map.invalidateSize(),250); }); return d; };
+  fc.addTo(map);
   canvas=L.canvas({padding:.5});
   document.getElementById('elecBtn').onclick=openElecPanel;
   document.getElementById('climits').onchange=()=>{ if(tab==='T') renderT(); };
