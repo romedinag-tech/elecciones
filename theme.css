@@ -274,3 +274,7 @@ main{position:absolute;top:0;left:298px;right:0;bottom:0;display:flex;flex-direc
 .sz-t i{display:block;height:100%;background:var(--navy);border-radius:5px}
 .sz-v{width:38px;text-align:right;font-weight:700;color:var(--ink);flex:none;font-variant-numeric:tabular-nums}
 .sz-note{font-size:.62rem;color:var(--ink-lo);margin-top:5px;font-style:italic}
+
+.sz-eco{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:2px 20px;margin-top:4px}
+.sz-eco .dr-cor{cursor:default}
+.sz-eco .dr-lbl{width:96px}

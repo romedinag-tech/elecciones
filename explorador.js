@@ -1,5 +1,5 @@
 // Explorador territorial electoral — workbench: nivel → unidad → módulos. Elección elegida DENTRO de cada módulo.
-const V='20';
+const V='21';
 const LEVELS=[{k:'nacional',lbl:'Nacional'},{k:'region',lbl:'Región'},{k:'distrito',lbl:'Distrito'},
   {k:'circ_senatorial',lbl:'Circ. sen.'},{k:'metro',lbl:'Z. metro'},{k:'comuna',lbl:'Comuna'}];
 const REG_ORDER=[15,1,2,3,4,5,13,6,7,16,8,9,14,10,11,12];
@@ -185,12 +185,15 @@ function openElecPanel(){ const p=document.getElementById('elecpanel');
   p.style.display='block'; }
 function buildColorby(){ const s=document.getElementById('colorby'); s.innerHTML='';
   const add=(v,t)=>{ const o=document.createElement('option'); o.value=v; o.textContent=t; s.appendChild(o); };
-  add('winner','Ganador (1ª mayoría)'); add('part','Participación'); add('margen','Margen 1º–2º');
+  add('winner','Ganador (1ª mayoría)'); add('part','Participación'); add('margen','Margen 1º–2º'); add('nulos','% blancos + nulos');
   if(prevSameType(elecSel)) add('swing','Swing vs elección anterior');
   if(partnerOf(elecSel)) add('split','Voto cruzado (mismo día)');
+  if(hasRounds(elecSel)) add('consist','Consistencia 1ª/2ª vuelta');
   const og=document.createElement('optgroup'); og.label='% por candidato';
   TERR.candidatos.slice(0,14).forEach(c=>{ const o=document.createElement('option'); o.value='cand:'+c.i; o.textContent='% '+cap(c.nombre); og.appendChild(o); });
-  s.appendChild(og); s.value=colorby; }
+  s.appendChild(og);
+  if(![...s.options].some(o=>o.value===colorby)) colorby='winner';
+  s.value=colorby; }
 
 function unitCuts(){ if(level==='comuna') return new Set([+unitId]); if(level==='nacional') return null;
   return new Set(Object.entries(CUTMAP).filter(([c,x])=> level==='region'?x.reg==unitId:level==='distrito'?x.dist==unitId:
@@ -203,12 +206,31 @@ function candCol(i){ const c=TERR.candidatos[i]; if(!c) return '#b9c0cb'; return
 function metricVal(u){ if(!u||!u.val) return null;
   if(colorby==='part') return u.part;
   if(colorby==='margen'){ const s=Object.values(u.v).sort((a,b)=>b-a); return s.length>=2?100*(s[0]-s[1])/u.val:100; }
+  if(colorby==='nulos'){ const nb=u.nb||0; return 100*nb/(u.val+nb); }
   if(colorby.startsWith('cand:')){ const i=+colorby.slice(5); return 100*((u.v[i]||0))/u.val; } return null; }
 function pctl(a,p){ if(!a.length) return null; const s=[...a].sort((x,y)=>x-y); return s[Math.floor((s.length-1)*p)]; }
 function seqCol(v){ if(v==null) return '#e5e5e5'; const r=seqRange; if(!r||r.hi===r.lo) return SEQ[2];
   const t=Math.max(0,Math.min(1,(v-r.lo)/(r.hi-r.lo))); return SEQ[Math.min(4,Math.floor(t*5))]; }
-function colorFeat(u,f){ if(colorby==='swing'||colorby==='split') return divCol(DIVMAP[+f.properties.cut]);
+function idOf(f){ return f.properties.codigo_rec!=null?f.properties.codigo_rec:f.properties.cut; }
+function colorFeat(u,f){ if(colorby==='consist') return consistCol(CONSIST[String(idOf(f))]);
+  if(colorby==='swing'||colorby==='split') return divCol(DIVMAP[+f.properties.cut]);
   if(colorby==='winner'){ const w=winnerOf(u); return w?candCol(w.i):'#e5e5e5'; } return seqCol(metricVal(u)); }
+
+// ---- consistencia 1ª/2ª vuelta (bloque ganador se repite entre rondas) ----
+let CONSIST={}, CONSIST_PCT=null;
+function fetchTerr(e){ if(TERRCACHE[e]) return Promise.resolve(TERRCACHE[e]);
+  return fetch('data/territorial/'+e+'.json?v='+V).then(r=>r.json()).then(d=>{TERRCACHE[e]=d; return d;}); }
+function rounds(e){ const off=officeOf(e), yr=e.slice(0,4); const all=allElecList().filter(x=>x.slice(0,4)===yr&&officeOf(x)===off);
+  return {v1:all.find(x=>x.includes('_1v')), v2:all.find(x=>x.includes('_2v'))}; }
+function hasRounds(e){ const r=rounds(e); return r.v1&&r.v2; }
+function wbBloc(T,geo,id){ if(!T) return null; const data=geo==='local'?T.local:T.comuna; const u=data[String(id)];
+  if(!u||!u.val) return null; let bi=null,bv=-1; for(const k in u.v) if(u.v[k]>bv){bv=u.v[k];bi=+k;}
+  const c=bi==null?null:T.candidatos[bi]; return c?c.bloque:null; }
+function computeConsist(feats,geo){ CONSIST={}; const r=rounds(elecSel); const T1=TERRCACHE[r.v1], T2=TERRCACHE[r.v2];
+  feats.forEach(f=>{ const id=idOf(f); const b1=wbBloc(T1,geo,id), b2=wbBloc(T2,geo,id);
+    CONSIST[String(id)]=(b1&&b2)?(b1===b2?1:0):null; });
+  const vv=Object.values(CONSIST).filter(v=>v!=null); CONSIST_PCT=vv.length?Math.round(100*vv.filter(v=>v).length/vv.length):null; }
+function consistCol(v){ return v==null?'#e5e5e5':(v?'#3F8E86':'#C55A11'); }
 
 // ---- swing (vs elección anterior mismo tipo) y split-ticket (vs otra elección del mismo día) ----
 const DIVPAL=['#2166ac','#67a9cf','#f7f7f7','#ef8a62','#b2182b']; let DIVMAP={}, DIVREF=null;
@@ -235,10 +257,12 @@ function divCol(v){ if(v==null) return '#e5e5e5'; const m=(seqRange&&seqRange.ab
 
 function renderT(){
   if((colorby==='swing'||colorby==='split') && !TENDCACHE['comuna']){ ensureTendComuna().then(renderT); return; }
+  if(colorby==='consist'){ const r=rounds(elecSel); if(!TERRCACHE[r.v1]||!TERRCACHE[r.v2]){ Promise.all([fetchTerr(r.v1),fetchTerr(r.v2)]).then(renderT); return; } }
   if(layer){ map.removeLayer(layer); layer=null; }
   const {geo,idp,data,feats}=terrSub();
   if(!feats.length){ document.getElementById('resumen').innerHTML='Sin sub-unidades para mapear.'; return; }
   if(colorby==='swing'||colorby==='split') computeDivMap(feats);
+  else if(colorby==='consist') computeConsist(feats,geo);
   else if(colorby!=='winner'){ const vals=feats.map(f=>metricVal(data[String(f.properties[idp])])).filter(v=>v!=null);
     seqRange={lo:pctl(vals,.05),hi:pctl(vals,.95)}; }
   layer=L.geoJSON({type:'FeatureCollection',features:feats},{ renderer:canvas,
@@ -261,8 +285,29 @@ function nsePart(){ const cuts=unitCuts(); const tc=TENDCACHE['comuna']||{}; con
 function szCard(title,pairs,hint){ return `<div class="sz-card"><div class="sz-h">${title}</div>`+
   pairs.map(([l,v])=>`<div class="sz-bar"><span class="sz-l">${l}</span><span class="sz-t"><i style="width:${v==null?0:Math.min(100,v)}%"></i></span><span class="sz-v">${v==null?'—':v+'%'}</span></div>`).join('')+
   (hint?`<div class="sz-note">${hint}</div>`:'')+`</div>`; }
+let SOCIO={}, SOCIO_LOADED=false;
+function ensureSocio(){ if(SOCIO_LOADED) return Promise.resolve();
+  return fetch('data/explorador_socio.json?v='+V).then(r=>r.json()).then(d=>{SOCIO=d;SOCIO_LOADED=true;}).catch(()=>{SOCIO_LOADED=true;}); }
+function renderEcol(){ const box=document.getElementById('terrbottom'); box.innerHTML='<div class="sz-hint">Cargando sesgos…</div>';
+  ensureSocio().then(()=>{ const {geo,idp,data,feats}=terrSub(); const isLocal=geo==='local';
+    const vars=isLocal?[['escolaridad','Escolaridad'],['pct_extranjeros','% extranjeros'],['pct_60mas','% 60+ años'],['pct_jov1824','% jóvenes'],['pct_mujeres','% mujeres'],['pct_indigena','% originarios']]
+      :[['escol','Escolaridad'],['pct_inmig','% inmigrantes'],['pct_60mas','% 60+ años'],['pct_a1829','% jóvenes'],['casen_ing_pc','Ingreso'],['nse_score','NSE']];
+    const rows=feats.map(f=>{ const id=idOf(f); const u=data[String(id)];
+      const metric= u&&u.val? (colorby==='nulos'? 100*((u.nb||0))/(u.val+(u.nb||0)) : 100*((u.v[+colorby.slice(5)]||0))/u.val) : null;
+      const soc=isLocal?SOCIO[String(id)]:KPI.comuna[id]; return {metric,soc}; }).filter(x=>x.metric!=null&&x.soc);
+    const cors=vars.map(([k,lbl])=>{ const xs=[],ys=[]; rows.forEach(r=>{ if(r.soc[k]!=null){ xs.push(r.soc[k]); ys.push(r.metric); }});
+      return {lbl,r:xs.length>4?pearson(xs,ys):null}; }).filter(c=>c.r!=null).sort((a,b)=>Math.abs(b.r)-Math.abs(a.r));
+    const ml=colorby==='nulos'?'blancos + nulos':'voto de '+cap(TERR.candidatos[+colorby.slice(5)].nombre);
+    let h=`<div class="sz-title">Sesgos ecológicos · ${ml} · correlación con la demografía de las ${rows.length} ${isLocal?'locales':'comunas'}</div>`;
+    if(!cors.length){ h+=`<div class="sz-hint">Sin suficientes sub-unidades con dato demográfico.</div>`; }
+    else h+=`<div class="sz-eco">`+cors.map(c=>{ const w=Math.abs(c.r)*50,pos=c.r>=0; return `<div class="dr-cor"><span class="dr-lbl">${c.lbl}</span><span class="dr-track"><i class="dr-fill" style="width:${w}%;${pos?'left:50%':'right:50%'};background:${pos?'#b2182b':'#2166ac'}"></i></span><span class="dr-r">${c.r>0?'+':''}${c.r.toFixed(2)}</span></div>`; }).join('')+`</div>`;
+    h+=`<div class="sz-note">Correlación de Pearson (ecológica, Robinson 1950): rojo = más apoyo donde la variable es alta; azul = menos. Describe territorios, no personas.</div>`;
+    box.innerHTML=h;
+  });
+}
 function renderSesgos(){ const box=document.getElementById('terrbottom');
-  if(colorby!=='part'){ box.innerHTML=`<div class="sz-hint">Elige el indicador <b>Participación</b> para ver los sesgos por edad, género, nacionalidad y nivel socioeconómico.<span> · Sesgos por candidato (inferencia ecológica): próximamente.</span></div>`; return; }
+  if(colorby.startsWith('cand:')||colorby==='nulos'){ return renderEcol(); }
+  if(colorby!=='part'){ box.innerHTML=`<div class="sz-hint">Elige <b>Participación</b> (sesgos por edad/género/nacionalidad/NSE) o <b>un candidato / blancos+nulos</b> (sesgos ecológicos con la demografía).</div>`; return; }
   box.innerHTML='<div class="sz-hint">Cargando sesgos…</div>';
   Promise.all([ensureSesgos(),ensureTendComuna()]).then(()=>{
     const s=((SESGOS[level]||{})[unitId]||{})[elecSel];
@@ -283,7 +328,9 @@ function popupSub(f,geo,idp,data){ const u=data[String(f.properties[idp])]; cons
   let h=`<b>${subName(f,geo)}</b><br>`;
   if(colorby==='swing'||colorby==='split'){ const dv=DIVMAP[+f.properties.cut];
     h+=(dv==null?'<span style="color:#888">sin comparable</span>':`${colorby==='swing'?'Swing':'Voto cruzado'}: <b>${dv>0?'+':''}${dv.toFixed(1)} pp</b> ${dv>0?'→ derecha':dv<0?'→ izquierda':''}<br><span style="color:#888">vs ${DIVREF?elecInfo(DIVREF).label+' '+elecInfo(DIVREF).year:'—'}</span>`)+'<br>'; }
-  if(!u||!w) return h+(colorby==='swing'||colorby==='split'?'':'sin resultado');
+  if(colorby==='consist'){ const cv=CONSIST[String(idOf(f))]; h+=(cv==null?'<span style="color:#888">sin comparable</span>':(cv?'<b>Mismo bloque</b> ganó 1ª y 2ª vuelta':'<b>Cambió de bloque</b> entre vueltas'))+'<br>'; }
+  if(colorby==='nulos'&&u&&u.val){ const nb=u.nb||0; h+=`Blancos + nulos: <b>${(100*nb/(u.val+nb)).toFixed(1)}%</b><br>`; }
+  if(!u||!w) return h+(colorby==='swing'||colorby==='split'||colorby==='consist'?'':'sin resultado');
   const top=Object.entries(u.v).sort((a,b)=>b[1]-a[1]).slice(0,3)
     .map(([i,vs])=>`${cap(TERR.candidatos[+i].nombre)}: <b>${(100*vs/u.val).toFixed(1)}%</b>`).join('<br>');
   h+=top+`<br><span style="color:#888">Participación: ${u.part??'—'}%</span>`; return h; }
@@ -297,31 +344,38 @@ function renderSide(geo,feats,idp,data){ const o=(KPI[level]||{})[unitId]||{}; c
     return `<div class="ts-row"><span class="ts-name">${cap(c.nombre)}</span><span class="ts-bar"><i style="width:${pct}%;background:${candCol(+i)}"></i></span><span class="ts-pct">${pct.toFixed(1)}%</span></div>`; }).join('');
   h+=`</div>`;
   // ranking de sub-unidades por la métrica activa
-  const isDiv=(colorby==='swing'||colorby==='split');
+  const isDiv=(colorby==='swing'||colorby==='split'), isCon=(colorby==='consist');
   const rows=feats.map(f=>({f,u:data[String(f.properties[idp])]})).filter(x=>x.u&&x.u.val);
-  const key=x=> isDiv? (DIVMAP[+x.f.properties.cut] ?? -999) : colorby==='winner'?(winnerOf(x.u)||{}).pct||0 : (metricVal(x.u)??-1);
+  const key=x=> isCon? (CONSIST[String(idOf(x.f))]??-1) : isDiv? (DIVMAP[+x.f.properties.cut] ?? -999) : colorby==='winner'?(winnerOf(x.u)||{}).pct||0 : (metricVal(x.u)??-1);
   rows.sort((a,b)=>key(b)-key(a));
   h+=`<div class="ts-h2">${feats.length} ${geo==='local'?'locales':'comunas'} · ${colLabel()}</div><div class="ts-list">`;
   h+=rows.slice(0,60).map(({f,u})=>{ const w=winnerOf(u); const wc=w?TERR.candidatos[w.i]:null;
-    const dv=isDiv?DIVMAP[+f.properties.cut]:null;
-    const val= isDiv? (dv==null?'—':(dv>0?'+':'')+dv.toFixed(1)+' pp')
+    const dv=isDiv?DIVMAP[+f.properties.cut]:null, cv=isCon?CONSIST[String(idOf(f))]:null;
+    const val= isCon? (cv==null?'—':(cv?'consistente':'cambió'))
+      : isDiv? (dv==null?'—':(dv>0?'+':'')+dv.toFixed(1)+' pp')
       : colorby==='winner'? (w?cap(wc.nombre)+' '+w.pct.toFixed(0)+'%':'—')
       : colorby==='part'? (u.part??'—')+'%' : colorby==='margen'? metricVal(u).toFixed(1)+' pp' : metricVal(u).toFixed(1)+'%';
-    const dot= isDiv&&dv!=null?`<i class="ts-dot" style="background:${divCol(dv)}"></i>` : colorby==='winner'&&w?`<i class="ts-dot" style="background:${candCol(w.i)}"></i>`:'';
+    const dot= isCon?`<i class="ts-dot" style="background:${consistCol(cv)}"></i>` : isDiv&&dv!=null?`<i class="ts-dot" style="background:${divCol(dv)}"></i>` : colorby==='winner'&&w?`<i class="ts-dot" style="background:${candCol(w.i)}"></i>`:'';
     return `<div class="ts-li"><span class="ts-liN">${dot}${subName(f,geo)}</span><span class="ts-liV">${val}</span></div>`; }).join('');
   h+=`</div>`+(rows.length>60?`<div class="ts-more">+${rows.length-60} más…</div>`:'');
   document.getElementById('terrside').innerHTML=h; }
 function colLabel(){ if(colorby==='winner') return 'ganador'; if(colorby==='part') return 'participación';
-  if(colorby==='margen') return 'margen 1º–2º';
+  if(colorby==='margen') return 'margen 1º–2º'; if(colorby==='nulos') return 'blancos + nulos';
+  if(colorby==='consist') return 'consistencia 1ª/2ª vuelta';
   if(colorby==='swing') return 'swing vs '+(DIVREF?elecInfo(DIVREF).year:'anterior');
   if(colorby==='split') return 'voto cruzado vs '+(DIVREF?cap(elecInfo(DIVREF).label):'—');
   return '% '+cap(TERR.candidatos[+colorby.slice(5)].nombre); }
 function renderResumen(geo,n){ const o=(KPI[level]||{})[unitId]||{};
+  let extra='';
+  if(colorby==='consist'&&CONSIST_PCT!=null){ const r=rounds(elecSel);
+    extra=`<div class="r-hint"><b>${CONSIST_PCT}%</b> de las ${geo==='local'?'locales':'comunas'} mantuvieron el bloque ganador entre 1ª y 2ª vuelta; el resto cambió. Compara ${elecInfo(r.v1).label} y ${elecInfo(r.v2).label} ${elecInfo(r.v2).year}.</div>`; }
+  else extra=`<div class="r-hint">Máxima desagregación disponible para esta elección. Clic en una unidad para el detalle.</div>`;
   document.getElementById('resumen').innerHTML=`<div class="r-com">${cap(o.nombre||'')}</div>`+
     `<div class="r-el">${TERR.meta.label} ${elecInfo(elecSel).year}</div>`+
-    `${n} ${geo==='local'?'locales de votación':'comunas'} · coloreado por <b>${colLabel()}</b>.`+
-    `<div class="r-hint">Máxima desagregación disponible para esta elección. Clic en una unidad para el detalle.</div>`; }
+    `${n} ${geo==='local'?'locales de votación':'comunas'} · coloreado por <b>${colLabel()}</b>.`+extra; }
 function renderLeg(){ const el=document.getElementById('leg2');
+  if(colorby==='consist'){ el.innerHTML=`<span class="lg" style="width:100%;font-weight:700;color:#333">Consistencia 1ª/2ª vuelta</span>`+
+      `<span class="lg"><i style="background:#3F8E86"></i>mismo bloque</span><span class="lg"><i style="background:#C55A11"></i>cambió de bloque</span>`; return; }
   if(colorby==='swing'||colorby==='split'){ const m=(seqRange&&seqRange.abs)||10;
     el.innerHTML=`<span class="lg" style="width:100%;font-weight:700;color:#333">${colLabel()} (pp)</span>`+
       `<span class="lg"><i style="background:#2166ac"></i>← izq. −${m.toFixed(0)}</span>`+
