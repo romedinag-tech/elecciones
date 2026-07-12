@@ -1,5 +1,5 @@
 // Explorador territorial electoral — workbench: nivel → unidad → módulos. Elección elegida DENTRO de cada módulo.
-const V='38';
+const V='39';
 const LEVELS=[{k:'nacional',lbl:'Nacional'},{k:'region',lbl:'Región'},{k:'distrito',lbl:'Distrito'},
   {k:'circ_senatorial',lbl:'Circ. sen.'},{k:'metro',lbl:'Z. metro'},{k:'comuna',lbl:'Comuna'}];
 const REG_ORDER=[15,1,2,3,4,5,13,6,7,16,8,9,14,10,11,12];
@@ -164,7 +164,7 @@ function renderCbody(){ const o=(KPI[level]||{})[unitId]; const p=document.getEl
 
 // =================== MÓDULO Análisis territorial ===================
 function ensureMap(){ if(map) return;
-  map=L.map('map',{preferCanvas:true,minZoom:3}).setView([-35.5,-71.3],5);
+  map=L.map('map',{preferCanvas:true,minZoom:3}).setView([-33.55,-70.66],9);  // primera imagen: cuenca de Santiago
   // capas base: Mapa (CARTO) / Satélite (Esri World Imagery) — mismo montaje que el visor de uso de suelo
   const claro=L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png',
     {attribution:'&copy; OpenStreetMap &copy; CARTO',subdomains:'abcd',maxZoom:19});
@@ -220,7 +220,14 @@ function buildIndics(){ const box=document.getElementById('indics'); box.innerHT
 function candselVal(){ const s=document.getElementById('candsel'); return s&&s.value?+s.value.slice(5):0; }
 function showCandsel(on){ const s=document.getElementById('candsel'); s.style.display=on?'':'none'; if(on) s.value=colorby.startsWith('cand:')?colorby:'cand:0'; }
 function buildCandsel(){ const s=document.getElementById('candsel'); s.innerHTML='';
-  TERR.candidatos.slice(0,20).forEach(c=>{ const o=document.createElement('option'); o.value='cand:'+c.i; o.textContent=cap(c.nombre); s.appendChild(o); });
+  // candidatos COHERENTES con la unidad: solo los que tienen votos en ella (clave en gobernadores/diputados, carrera por región/distrito)
+  const cuts=unitCuts(); const agg={};
+  for(const cut in TERR.comuna){ if(cuts&&!cuts.has(+cut)) continue; const v=TERR.comuna[cut].v; for(const i in v) agg[i]=(agg[i]||0)+v[i]; }
+  let idxs=Object.keys(agg).map(i=>+i).sort((a,b)=>agg[b]-agg[a]);
+  if(!idxs.length) idxs=TERR.candidatos.map(c=>c.i);  // fallback
+  idxs.slice(0,30).forEach(i=>{ const c=TERR.candidatos[i]; if(!c) return; const o=document.createElement('option'); o.value='cand:'+i; o.textContent=cap(c.nombre); s.appendChild(o); });
+  // si el candidato coloreado actual no está en la unidad, resetea al más votado de ella
+  if(colorby.startsWith('cand:') && !idxs.includes(+colorby.slice(5))) colorby='cand:'+idxs[0];
   s.onchange=e=>{ colorby=e.target.value; buildIndics(); renderT(); }; }
 const MANZ={};  // cache de geojson de manzanas por cut
 function ensureManz(cut){ if(MANZ[cut]!==undefined) return Promise.resolve();
@@ -333,7 +340,8 @@ function renderT(){
   drawClimits();  // límites comunales sobre el relleno
   if(barsMode) drawBars(feats,data,idp); else if(barLayer){ map.removeLayer(barLayer); barLayer=null; }
   const fk=level+'|'+unitId;  // mantener vista: solo re-encuadrar al cambiar de UNIDAD (no indicador, granularidad ni elección)
-  if(fk!==mapFitKey){ try{ map.fitBounds(layer.getBounds(),{padding:[22,22],maxZoom:geo==='local'?14:11}); }catch(e){} mapFitKey=fk; }
+  // Nacional NO auto-encuadra (deja la vista en la cuenca de Santiago); región/comuna sí se encuadran a su unidad
+  if(fk!==mapFitKey){ if(level!=='nacional'){ try{ map.fitBounds(layer.getBounds(),{padding:[22,22],maxZoom:geo==='local'?14:11}); }catch(e){} } mapFitKey=fk; }
   renderResumen(geo,feats.length); renderLeg(); renderRight(geo,feats,idp,data);
 }
 let barLayer=null;
