@@ -1,5 +1,5 @@
 // Explorador territorial electoral — workbench: nivel → unidad → módulos. Elección elegida DENTRO de cada módulo.
-const V='26';
+const V='27';
 const LEVELS=[{k:'nacional',lbl:'Nacional'},{k:'region',lbl:'Región'},{k:'distrito',lbl:'Distrito'},
   {k:'circ_senatorial',lbl:'Circ. sen.'},{k:'metro',lbl:'Z. metro'},{k:'comuna',lbl:'Comuna'}];
 const REG_ORDER=[15,1,2,3,4,5,13,6,7,16,8,9,14,10,11,12];
@@ -378,6 +378,33 @@ function eiFit(pts){ const P=pts.filter(p=>p.x!=null&&p.y!=null&&isFinite(p.x)&&
       rA=[Math.max(0,best.a-stA),Math.min(1,best.a+stA)]; rB=[Math.max(0,best.b-stB),Math.min(1,best.b+stB)]; }
     cA=best.a; cB=best.b; }
   return {gA,gB,cA,cB,F:mx,noVar}; }
+// Nelder-Mead genérico (reutilizable para MLE/optimización)
+function nelderMead(f,x0,maxIter){ const n=x0.length,al=1,ga=2,rh=0.5,si=0.5;
+  let S=[x0.slice()]; for(let i=0;i<n;i++){ const p=x0.slice(); p[i]+=(Math.abs(p[i])>1e-6?0.1*Math.abs(p[i]):0.1); S.push(p); }
+  let F=S.map(f);
+  for(let it=0;it<maxIter;it++){ const o=F.map((v,i)=>i).sort((a,b)=>F[a]-F[b]); S=o.map(i=>S[i]); F=o.map(i=>F[i]);
+    const c=new Array(n).fill(0); for(let i=0;i<n;i++) for(let j=0;j<n;j++) c[j]+=S[i][j]/n;
+    const w=S[n], xr=c.map((v,j)=>v+al*(v-w[j])), fr=f(xr);
+    if(fr<F[0]){ const xe=c.map((v,j)=>v+ga*(xr[j]-v)), fe=f(xe); if(fe<fr){S[n]=xe;F[n]=fe;}else{S[n]=xr;F[n]=fr;} }
+    else if(fr<F[n-1]){ S[n]=xr; F[n]=fr; }
+    else { const xc=c.map((v,j)=>v+rh*(w[j]-v)), fc=f(xc); if(fc<F[n]){S[n]=xc;F[n]=fc;}
+      else { for(let i=1;i<=n;i++){ S[i]=S[0].map((v,j)=>v+si*(S[i][j]-v)); F[i]=f(S[i]); } } } }
+  const b=F.map((v,i)=>i).sort((a,b)=>F[a]-F[b])[0]; return {x:S[b],f:F[b]}; }
+// King EI (2×2): tomografía + normal bivariada trunc. (MLE modelo lineal) + estimaciones acotadas por unidad (Duncan-Davis)
+function kingEI(pts){ const P=pts.filter(p=>p.x!=null&&p.y!=null&&p.w>0&&isFinite(p.x)&&isFinite(p.y)); if(P.length<8) return null;
+  const nll=par=>{ const Bb=par[0],Bw=par[1],sb=Math.exp(par[2]),sw=Math.exp(par[3]),rho=Math.tanh(par[4]); let ll=0;
+    for(const p of P){ const x=p.x, m=x*Bb+(1-x)*Bw; let v=x*x*sb*sb+(1-x)*(1-x)*sw*sw+2*x*(1-x)*rho*sb*sw; v=Math.max(v,1e-6);
+      const d=p.y-m; ll+=p.w*(0.5*Math.log(v)+d*d/(2*v)); } return ll; };
+  const g=eiFit(P); const opt=nelderMead(nll,[g?g.cA:.5,g?g.cB:.5,Math.log(.15),Math.log(.15),0],250);
+  const Bb=opt.x[0],Bw=opt.x[1],sb=Math.exp(opt.x[2]),sw=Math.exp(opt.x[3]),rho=Math.tanh(opt.x[4]);
+  let nB=0,dB=0,nW=0,dW=0;
+  for(const p of P){ const x=p.x,t=p.y,m=x*Bb+(1-x)*Bw; let v=x*x*sb*sb+(1-x)*(1-x)*sw*sw+2*x*(1-x)*rho*sb*sw; v=Math.max(v,1e-6);
+    let bB=Bb+(x*sb*sb+(1-x)*rho*sb*sw)/v*(t-m);
+    const lbB=x>1e-6?Math.max(0,(t-(1-x))/x):0, ubB=x>1e-6?Math.min(1,t/x):1;  // cotas Duncan-Davis
+    bB=Math.max(lbB,Math.min(ubB,bB)); bB=Math.max(0,Math.min(1,bB));
+    let bW=(1-x)>1e-6?(t-x*bB)/(1-x):Bw; bW=Math.max(0,Math.min(1,bW));
+    nB+=p.w*x*bB; dB+=p.w*x; nW+=p.w*(1-x)*bW; dW+=p.w*(1-x); }
+  return {A:dB?nB/dB:Bb, B:dW?nW/dW:Bw}; }
 const DEMOS=[{k:'muj',lbl:'Género',A:'Mujeres',B:'Hombres',loc:'pct_mujeres',com:'pct_muj',m3:s=>s&&s.sexo?[s.sexo.M,s.sexo.H]:null},
   {k:'sup',lbl:'Educación superior',A:'Con educ. superior',B:'Resto',loc:'pct_superior',com:'esc_prof',m3:()=>null},
   {k:'ext',lbl:'Nacionalidad',A:'Extranjeros',B:'Chilenos',loc:'pct_extranjeros',com:'pct_inmig',m3:s=>s&&s.nac?[s.nac.E,s.nac.C]:null}];
@@ -394,17 +421,20 @@ function fmtpp(v){ return v==null?'—':(v>0?'+':'')+v.toFixed(0)+'pp'; }
 function demoCard(D,rows,s){ const pts=rows.filter(r=>r.d[D.k]!=null&&r.y!=null).map(r=>({x:r.d[D.k]/100,y:r.y,w:r.pob}));
   const fit=eiFit(pts);
   if(!fit) return `<div class="mth-card"><div class="sz-h">${D.lbl}</div><div class="sz-hint">datos insuficientes</div></div>`;
+  const king=kingEI(pts);
   const verb=colorby==='part'?'votó':colorby==='nulos'?'votó nulo/blanco':'votó por '+cap(TERR.candidatos[+colorby.slice(5)].ape1||'');
-  const F=fit.F*100, rA=fit.cA*100, rB=fit.cB*100, gapC=rA-rB, gapG=(fit.gA-fit.gB)*100;
-  const m3=colorby==='part'&&D.m3(s); const m3A=m3?m3[0]:null, m3B=m3?m3[1]:null; const gapM3=(m3A!=null&&m3B!=null)?m3A-m3B:null;
-  const gaps=[gapC,gapG,gapM3].filter(v=>v!=null); const conv=gaps.length>=2?Math.max(...gaps)-Math.min(...gaps):null;
+  // primario = King (estándar de oro); si no, LS restringido
+  const rA=(king?king.A:fit.cA)*100, rB=(king?king.B:fit.cB)*100, gapK=rA-rB;
+  const F=fit.F*100, gapC=(fit.cA-fit.cB)*100, gapG=(fit.gA-fit.gB)*100;
+  const m3=colorby==='part'&&D.m3(s); const gapM3=(m3&&m3[0]!=null&&m3[1]!=null)?m3[0]-m3[1]:null;
+  const gaps=[gapK,gapC,gapM3].filter(v=>v!=null); const conv=gaps.length>=2?Math.max(...gaps)-Math.min(...gaps):null;
   let h=`<div class="mth-card"><div class="sz-h">${D.lbl}</div>`;
   h+=`<div class="mth-share"><b>${D.A}</b> = ${F.toFixed(0)}% de la población · de ese grupo, <b>${rA.toFixed(0)}%</b> ${verb}</div>`;
   h+=`<div class="mth-rates">`+
      `<div class="mrate"><span class="ml">${D.A}</span><span class="mt"><i style="width:${Math.min(100,rA)}%;background:#16365a"></i></span><span class="mv">${rA.toFixed(0)}%</span></div>`+
      `<div class="mrate"><span class="ml">${D.B}</span><span class="mt"><i style="width:${Math.min(100,rB)}%;background:#9aa0a6"></i></span><span class="mv">${rB.toFixed(0)}%</span></div></div>`;
-  h+=`<div class="mth-gap" style="color:${gapC>=0?'#B2182B':'#2166ac'}">Sesgo ${D.A.split(' ')[0]}−${D.B.split(' ')[0]}: ${gapC>0?'+':''}${gapC.toFixed(0)} pp</div>`;
-  h+=`<div class="mth-mrow">por método: <b>Goodman</b> ${fmtpp(gapG)} · <b>LS restr.</b> ${fmtpp(gapC)}${gapM3!=null?` · <b>Real</b> ${fmtpp(gapM3)}`:''}</div>`;
+  h+=`<div class="mth-gap" style="color:${gapK>=0?'#B2182B':'#2166ac'}">Sesgo ${D.A.split(' ')[0]}−${D.B.split(' ')[0]}: ${gapK>0?'+':''}${gapK.toFixed(0)} pp</div>`;
+  h+=`<div class="mth-mrow">por método: <b>King</b> ${fmtpp(gapK)} · <b>Goodman</b> ${fmtpp(gapG)} · <b>LS restr.</b> ${fmtpp(gapC)}${gapM3!=null?` · <b>Real</b> ${fmtpp(gapM3)}`:''}</div>`;
   if(conv!=null) h+=`<div class="mth-conv ${conv<4?'ok':conv<10?'mid':'no'}">${conv<4?'✓ convergen':conv<10?'~ aproximan':'✗ divergen'} · ±${conv.toFixed(0)}pp</div>`;
   return h+`</div>`; }
 function renderMethods(){ const box=document.getElementById('terrside');
@@ -416,7 +446,7 @@ function renderMethods(){ const box=document.getElementById('terrside');
     let h=`<div class="mth-pad"><div class="sz-title">Sesgos de ${ml}</div>`+
       `<div class="mth-subt">Tasa estimada por grupo (${rows.length} ${granName(eg==='poligono'?'local':'comuna')}s) · inferencia ecológica</div><div class="mth-row">`;
     DEMOS.forEach(D=>{ h+=demoCard(D,rows,s); });
-    h+=`</div><div class="sz-note"><b>Goodman</b>: regresión ecológica (MCO). <b>LS restr.</b>: mínimos cuadrados acotados 0–100% (evita valores imposibles). <b>Real</b>: tasa efectiva por grupo de quienes votaron (solo participación, dato oficial). Si los métodos convergen, el sesgo es robusto. Falacia ecológica: describe territorios, no personas.</div></div>`;
+    h+=`</div><div class="sz-note"><b>King</b> (estándar): inferencia ecológica — tomografía + normal bivariada (MLE) con cotas de Duncan-Davis. <b>Goodman</b>: regresión ecológica (MCO). <b>LS restr.</b>: mínimos cuadrados acotados 0–100%. <b>Real</b>: tasa efectiva por grupo de quienes votaron (solo participación, dato oficial). Convergencia entre métodos = sesgo robusto. Falacia ecológica: describe territorios, no personas.</div></div>`;
     box.innerHTML=h;
   });
 }
