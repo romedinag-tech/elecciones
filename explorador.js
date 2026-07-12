@@ -1,5 +1,5 @@
 // Explorador territorial electoral — workbench: nivel → unidad → módulos. Elección elegida DENTRO de cada módulo.
-const V='29';
+const V='30';
 const LEVELS=[{k:'nacional',lbl:'Nacional'},{k:'region',lbl:'Región'},{k:'distrito',lbl:'Distrito'},
   {k:'circ_senatorial',lbl:'Circ. sen.'},{k:'metro',lbl:'Z. metro'},{k:'comuna',lbl:'Comuna'}];
 const REG_ORDER=[15,1,2,3,4,5,13,6,7,16,8,9,14,10,11,12];
@@ -405,58 +405,53 @@ function kingEI(pts){ const P=pts.filter(p=>p.x!=null&&p.y!=null&&p.w>0&&isFinit
     let bW=(1-x)>1e-6?(t-x*bB)/(1-x):Bw; bW=Math.max(0,Math.min(1,bW));
     nB+=p.w*x*bB; dB+=p.w*x; nW+=p.w*(1-x)*bW; dW+=p.w*(1-x); }
   return {A:dB?nB/dB:Bb, B:dW?nW/dW:Bw}; }
-const DEMOS=[{k:'muj',lbl:'Género',A:'Mujeres',B:'Hombres',loc:'pct_mujeres',com:'pct_muj',m3:s=>s&&s.sexo?[s.sexo.M,s.sexo.H]:null},
-  {k:'sup',lbl:'Educación superior',A:'Con educ. superior',B:'Resto',loc:'pct_superior',com:'esc_prof',m3:()=>null},
-  {k:'ext',lbl:'Nacionalidad',A:'Extranjeros',B:'Chilenos',loc:'pct_extranjeros',com:'pct_inmig',m3:s=>s&&s.nac?[s.nac.E,s.nac.C]:null}];
-function outcomeShare(u){ if(!u||!u.val) return null; const e=u.val+(u.nb||0);
-  if(colorby==='part') return u.part!=null?u.part/100:null;
-  if(colorby==='nulos') return e?(u.nb||0)/e:null;
-  if(colorby.startsWith('cand:')) return e?(u.v[+colorby.slice(5)]||0)/e:null; return null; }
-function methodRows(){ const {geo,data,feats}=terrSub(); const isLocal=geo==='local';
-  return feats.map(f=>{ const id=idOf(f); const u=data[String(id)]; if(!u||!u.val) return null;
-    const soc=isLocal?SOCIO[String(id)]:KPI.comuna[id]; if(!soc) return null; const y=outcomeShare(u);
-    return {y, pob:(isLocal?soc.pob:soc.pob_2024)||1,
-      d:{muj:soc[isLocal?'pct_mujeres':'pct_muj'], sup:soc[isLocal?'pct_superior':'esc_prof'], ext:soc[isLocal?'pct_extranjeros':'pct_inmig']}}; }).filter(Boolean); }
+// ===== inferencia de sesgos a NIVEL DE MESA (estilo DecideChile) =====
+let MESA={};
+function ensureMesa(e){ if(MESA[e]) return Promise.resolve();
+  return fetch('data/mesa/'+e+'.json?v='+V).then(r=>r.ok?r.json():null).then(d=>{MESA[e]=d||[];}).catch(()=>{MESA[e]=[];}); }
+const DEMOS=[{k:'muj',lbl:'Género',A:'Mujeres',B:'Hombres',frac:m=>m.t?m.muj/m.t:null,m3:s=>s&&s.sexo?[s.sexo.M,s.sexo.H]:null},
+  {k:'jov',lbl:'Edad (jóvenes)',A:'Jóvenes 18–29',B:'30+ años',frac:m=>m.t?m.ed[0]/m.t:null,
+    m3:s=>s&&s.edad?[s.edad['18-29'],(s.edad['30-49']+s.edad['50-64']+s.edad['65+'])/3]:null},
+  {k:'ext',lbl:'Nacionalidad',A:'Extranjeros',B:'Chilenos',frac:m=>m.t?m.ext/m.t:null,m3:s=>s&&s.nac?[s.nac.E,s.nac.C]:null}];
+function mesaOutcome(m){ const valid=Object.values(m.v).reduce((s,v)=>s+v,0);
+  if(colorby.startsWith('cand:')) return valid?(m.v[colorby.slice(5)]||0)/valid:null;
+  if(colorby==='nulos'){ const em=valid+(m.nb||0); return em?(m.nb||0)/em:null; } return null; }
+function unitMesas(){ const cuts=unitCuts(); return (MESA[elecSel]||[]).filter(m=>m.t&&(!cuts||cuts.has(m.c))); }
+function unitFrac(ms,fracFn){ let g=0,t=0; for(const m of ms){ const f=fracFn(m); if(f==null) continue; g+=f*m.t; t+=m.t; } return t?100*g/t:null; }
 function fmtpp(v){ return v==null?'—':(v>0?'+':'')+v.toFixed(0)+'pp'; }
 function fmtppCap(v){ if(v==null) return '—'; if(Math.abs(v)>100) return (v>0?'+':'−')+'>100pp'; return (v>0?'+':'')+v.toFixed(0)+'pp'; }
-function demoCard(D,rows,s){ const pts=rows.filter(r=>r.d[D.k]!=null&&r.y!=null).map(r=>({x:r.d[D.k]/100,y:r.y,w:r.pob}));
-  const fit=eiFit(pts);
-  if(!fit) return `<div class="mth-card"><div class="sz-h">${D.lbl}</div><div class="sz-hint">datos insuficientes</div></div>`;
-  const king=kingEI(pts);
-  const verb=colorby==='part'?'votó':colorby==='nulos'?'votó nulo/blanco':'votó por '+cap(TERR.candidatos[+colorby.slice(5)].ape1||'');
-  const F=fit.F*100;
-  const gapK=king?(king.A-king.B)*100:null, gapC=(fit.cA-fit.cB)*100, gapG=(fit.gA-fit.gB)*100;
-  const m3=colorby==='part'&&D.m3(s); const hasReal=!!(m3&&m3[0]!=null&&m3[1]!=null); const gapR=hasReal?m3[0]-m3[1]:null;
-  // titular: si existe dato REAL (participación), ese manda; si no, King, salvo que la estimación sea poco fiable
-  let rA,rB,gap,tag,reliable=true; const gEco = gapK!=null?gapK:gapC;
-  if(hasReal){ rA=m3[0]; rB=m3[1]; gap=gapR; tag='dato real'; }
-  else { rA=(king?king.A:fit.cA)*100; rB=(king?king.B:fit.cB)*100; gap=gEco;
-    // fiable si: King y LS coinciden, el sesgo es plausible, y el grupo VARÍA lo suficiente en el territorio (identificable)
-    reliable = Math.abs((gapK!=null?gapK:gapC)-gapC)<10 && Math.abs(gEco)<=40 && fit.sdx>=0.012; tag=reliable?'estimación (King)':'poco fiable'; }
+function mCard(D,F,verb,rA,rB,gap,tag,reliable,meta){
   let h=`<div class="mth-card${!reliable?' unrel':''}"><div class="sz-h">${D.lbl}</div>`;
-  h+=`<div class="mth-share"><b>${D.A}</b> = ${F.toFixed(0)}% de la población${reliable?` · de ese grupo, <b>${rA.toFixed(0)}%</b> ${verb}`:''} <span class="mth-tag${hasReal?' real':''}">${tag}</span></div>`;
-  if(reliable){
-    h+=`<div class="mth-rates">`+
-       `<div class="mrate"><span class="ml">${D.A}</span><span class="mt"><i style="width:${Math.min(100,rA)}%;background:#16365a"></i></span><span class="mv">${rA.toFixed(0)}%</span></div>`+
-       `<div class="mrate"><span class="ml">${D.B}</span><span class="mt"><i style="width:${Math.min(100,rB)}%;background:#9aa0a6"></i></span><span class="mv">${rB.toFixed(0)}%</span></div></div>`;
-    h+=`<div class="mth-gap" style="color:${gap>=0?'#B2182B':'#2166ac'}">Sesgo ${D.A.split(' ')[0]}−${D.B.split(' ')[0]}: ${gap>0?'+':''}${gap.toFixed(0)} pp</div>`;
-  } else {
-    h+=`<div class="mth-unrel">⚠ Estimación territorial <b>poco fiable</b> a esta escala (los métodos no coinciden). Sin dato real no es concluyente — haz zoom a una comuna.</div>`;
-  }
-  h+=`<div class="mth-mrow">${hasReal?'estima el sesgo':'estimaciones'}: <b>King</b> ${fmtppCap(gapK)} · <b>Goodman</b> ${fmtppCap(gapG)} · <b>LS</b> ${fmtppCap(gapC)}${hasReal?` · <b class="mreal">Real</b> ${fmtpp(gapR)}`:''}</div>`;
-  if(hasReal){ const d=Math.abs(gEco-gapR); h+=`<div class="mth-conv ${d<5?'ok':d<15?'mid':'no'}">${d<5?'✓ la estimación recupera el dato real':d<15?'~ estimación aproximada':'✗ la estimación NO recupera el real'}</div>`; }
-  else if(gapK!=null){ const d=Math.abs(gapK-gapC); h+=`<div class="mth-conv ${d<5?'ok':d<12?'mid':'no'}">${d<5?'✓ King y LS coinciden':d<12?'~ aproximan':'✗ métodos discrepan'}</div>`; }
+  h+=`<div class="mth-share"><b>${D.A}</b>${F!=null?` = ${F.toFixed(0)}% del padrón`:''}${reliable?` · de ese grupo, <b>${rA.toFixed(0)}%</b> ${verb}`:''} <span class="mth-tag${meta.obs?' real':''}">${tag}</span></div>`;
+  if(reliable){ h+=`<div class="mth-rates">`+
+     `<div class="mrate"><span class="ml">${D.A}</span><span class="mt"><i style="width:${Math.max(0,Math.min(100,rA))}%;background:#16365a"></i></span><span class="mv">${rA.toFixed(0)}%</span></div>`+
+     `<div class="mrate"><span class="ml">${D.B}</span><span class="mt"><i style="width:${Math.max(0,Math.min(100,rB))}%;background:#9aa0a6"></i></span><span class="mv">${rB.toFixed(0)}%</span></div></div>`+
+     `<div class="mth-gap" style="color:${gap>=0?'#B2182B':'#2166ac'}">Sesgo ${D.A.split(' ')[0]}−${D.B.split(' ')[0]}: ${gap>0?'+':''}${gap.toFixed(0)} pp</div>`; }
+  else h+=`<div class="mth-unrel">⚠ <b>Poco fiable</b> con estas mesas (grupo casi sin variación o métodos discrepan). Prueba una unidad mayor.</div>`;
+  if(!meta.obs){ h+=`<div class="mth-mrow">estimaciones: <b>King</b> ${fmtppCap(meta.gapK)} · <b>Goodman</b> ${fmtppCap(meta.gapG)} · <b>LS</b> ${fmtppCap(meta.gapC)}</div>`;
+    if(meta.gapK!=null){ const d=Math.abs(meta.gapK-meta.gapC); h+=`<div class="mth-conv ${d<5?'ok':d<12?'mid':'no'}">${d<5?'✓ King y LS coinciden':d<12?'~ aproximan':'✗ métodos discrepan'}</div>`; } }
   return h+`</div>`; }
+function demoCard(D,ms,s){ const F=unitFrac(ms,D.frac);
+  const verb=colorby==='part'?'votó':colorby==='nulos'?'votó nulo/blanco':'votó por '+cap((TERR.candidatos[+colorby.slice(5)]||{}).ape1||'');
+  if(colorby==='part'){ const m3=D.m3(s); if(!m3||m3[0]==null||m3[1]==null) return `<div class="mth-card"><div class="sz-h">${D.lbl}</div><div class="sz-hint">sin dato observado</div></div>`;
+    return mCard(D,F,verb,m3[0],m3[1],m3[0]-m3[1],'observado',true,{obs:true}); }
+  const pts=ms.map(m=>({x:D.frac(m),y:mesaOutcome(m),w:m.t})).filter(p=>p.x!=null&&isFinite(p.x)&&p.y!=null);
+  const fit=eiFit(pts); if(!fit) return `<div class="mth-card"><div class="sz-h">${D.lbl}</div><div class="sz-hint">pocas mesas</div></div>`;
+  const king=kingEI(pts);
+  const gapK=king?(king.A-king.B)*100:null, gapC=(fit.cA-fit.cB)*100, gapG=(fit.gA-fit.gB)*100, gEco=gapK!=null?gapK:gapC;
+  const reliable=Math.abs(gEco-gapC)<12 && Math.abs(gEco)<=45 && fit.sdx>=0.008 && pts.length>=15;
+  const rA=(king?king.A:fit.cA)*100, rB=(king?king.B:fit.cB)*100;
+  return mCard(D,F,verb,rA,rB,gEco,reliable?'estimación (King)':'poco fiable',reliable,{gapK,gapG,gapC}); }
 function renderMethods(){ const box=document.getElementById('terrside');
-  const eg=effGran(); if(eg==='distrito'||eg==='region'){ box.innerHTML=`<div class="mth-pad"><div class="sz-hint">La estimación de sesgos se hace a nivel <b>polígono</b> o <b>comuna</b>. Cambia la granularidad.</div></div>`; return; }
-  box.innerHTML='<div class="mth-pad"><div class="sz-hint">Estimando…</div></div>';
-  Promise.all([ensureSocio(),ensureSesgos(),ensureTendComuna()]).then(()=>{
-    const rows=methodRows(); const s=((SESGOS[level]||{})[unitId]||{})[elecSel];
-    const ml=colorby==='part'?'la participación':colorby==='nulos'?'los blancos+nulos':'el voto de '+cap(TERR.candidatos[+colorby.slice(5)].nombre);
-    let h=`<div class="mth-pad"><div class="sz-title">Sesgos de ${ml}</div>`+
-      `<div class="mth-subt">Tasa estimada por grupo (${rows.length} ${granName(eg==='poligono'?'local':'comuna')}s) · inferencia ecológica</div><div class="mth-row">`;
-    DEMOS.forEach(D=>{ h+=demoCard(D,rows,s); });
-    h+=`</div><div class="sz-note"><b>King</b> (estándar): inferencia ecológica — tomografía + normal bivariada (MLE) con cotas de Duncan-Davis. <b>Goodman</b>: regresión ecológica (MCO). <b>LS restr.</b>: mínimos cuadrados acotados 0–100%. <b>Real</b>: tasa efectiva por grupo de quienes votaron (solo participación, dato oficial). Convergencia entre métodos = sesgo robusto. Falacia ecológica: describe territorios, no personas.</div></div>`;
+  box.innerHTML='<div class="mth-pad"><div class="sz-hint">Estimando a nivel de mesa…</div></div>';
+  Promise.all([ensureMesa(elecSel),ensureSesgos()]).then(()=>{
+    const ms=unitMesas(); const s=((SESGOS[level]||{})[unitId]||{})[elecSel];
+    const ml=colorby==='part'?'la participación':colorby==='nulos'?'los blancos+nulos':'el voto de '+cap((TERR.candidatos[+colorby.slice(5)]||{}).nombre||'');
+    if(colorby!=='part' && !ms.length){ box.innerHTML=`<div class="mth-pad"><div class="sz-hint">Sin datos de mesa por candidato para esta elección.</div></div>`; return; }
+    let h=`<div class="mth-pad"><div class="sz-title">Sesgos de ${ml}`.replace('Sesgos de el ','Sesgos del ')+`</div>`+
+      `<div class="mth-subt">${colorby==='part'?'Tasa <b>observada</b> por grupo (padrón × votantes)':'Inferencia ecológica a <b>nivel de mesa</b>'} · ${ms.length} mesas</div><div class="mth-row">`;
+    DEMOS.forEach(D=>{ h+=demoCard(D,ms,s); });
+    h+=`</div><div class="sz-note">${colorby==='part'?'<b>Observado</b>: dato oficial de quiénes votaron por grupo (SERVEL).':'<b>King</b>: inferencia ecológica a nivel de mesa (tomografía + MLE, cotas Duncan-Davis) — mismo enfoque que DecideChile. <b>Goodman</b>/<b>LS</b>: contraste. Género/edad/nacionalidad salen del padrón por mesa. Educación no está en el padrón (pendiente por censo).'} Falacia ecológica: estima grupos, no personas.</div></div>`;
     box.innerHTML=h;
   });
 }
