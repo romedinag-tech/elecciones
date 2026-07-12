@@ -1,5 +1,5 @@
 // Explorador territorial electoral — workbench: nivel → unidad → módulos. Elección elegida DENTRO de cada módulo.
-const V='22';
+const V='23';
 const LEVELS=[{k:'nacional',lbl:'Nacional'},{k:'region',lbl:'Región'},{k:'distrito',lbl:'Distrito'},
   {k:'circ_senatorial',lbl:'Circ. sen.'},{k:'metro',lbl:'Z. metro'},{k:'comuna',lbl:'Comuna'}];
 const REG_ORDER=[15,1,2,3,4,5,13,6,7,16,8,9,14,10,11,12];
@@ -10,7 +10,7 @@ const SEQ=['#EFF3FB','#C6D9F0','#8CB3DE','#4A80C0','#16365A'];
 const REF_LBL='Presidencial 1ª v. 2025';
 
 let CAT={}, KPI={}, GEOCOM=null, AREAS=null, TIDX={}, CUTMAP={}, REPR={};
-let level='nacional', unitId=null, tab='C', elecSel=null, colorby='winner', granul='poligono';
+let level='nacional', unitId=null, tab='C', elecSel=null, colorby='winner', granul='poligono', chartType='coropleta';
 let mapFitKey=null; const GEOMS={}; let climitsLayer=null;
 let TERR=null; const TERRCACHE={};
 let map=null, layer=null, canvas=null, seqRange=null;
@@ -169,6 +169,7 @@ function ensureMap(){ if(map) return;
   canvas=L.canvas({padding:.5});
   document.getElementById('elecBtn').onclick=openElecPanel;
   document.getElementById('climits').onchange=()=>{ if(tab==='T') renderT(); };
+  document.getElementById('charttype').onchange=e=>{ chartType=e.target.value; renderT(); };
   document.addEventListener('click',e=>{ const p=document.getElementById('elecpanel');
     if(p.style.display==='block'&&!p.contains(e.target)&&e.target.id!=='elecBtn'){ p.style.display='none'; } });
 }
@@ -207,7 +208,7 @@ function buildGranul(){ const s=document.getElementById('granul'); const opts=[]
   opts.push(['comuna','Comuna'],['distrito','Distrito'],['region','Región']);
   s.innerHTML=opts.map(([v,t])=>`<option value="${v}">${t}</option>`).join('');
   if(!opts.some(o=>o[0]===granul)) granul=opts[0][0];
-  s.value=granul; s.onchange=e=>{ granul=e.target.value; mapFitKey=null; renderT(); }; }
+  s.value=granul; s.onchange=e=>{ granul=e.target.value; renderT(); }; }
 
 function unitCuts(){ if(level==='comuna') return new Set([+unitId]); if(level==='nacional') return null;
   return new Set(Object.entries(CUTMAP).filter(([c,x])=> level==='region'?x.reg==unitId:level==='distrito'?x.dist==unitId:
@@ -296,17 +297,31 @@ function renderT(){
   else if(colorby==='consist') computeConsist(feats,geo);
   else if(colorby!=='winner'){ const vals=feats.map(f=>metricVal(data[String(f.properties[idp])])).filter(v=>v!=null);
     seqRange={lo:pctl(vals,.05),hi:pctl(vals,.95)}; }
+  const barsMode = chartType==='barras' && barsApplicable() && feats.length<=700;
   const w0=geo==='local'?.7:geo==='comuna'?.6:.8;
   layer=L.geoJSON({type:'FeatureCollection',features:feats},{ renderer:canvas,
-    style:f=>({color:'#fff',weight:w0,fillColor:colorFeat(data[String(f.properties[idp])],f),fillOpacity:.82}),
+    style:f=>({color:'#fff',weight:w0,fillColor:barsMode?'#eef1f5':colorFeat(data[String(f.properties[idp])],f),fillOpacity:barsMode?.5:.82}),
     onEachFeature:(f,l)=>{ l.bindPopup(popupSub(f,geo,idp,data));
       l.on('mouseover',()=>l.setStyle({weight:2})); l.on('mouseout',()=>l.setStyle({weight:w0})); }
   }).addTo(map);
   drawClimits();  // límites comunales sobre el relleno
-  const fk=level+'|'+unitId+'|'+eg;  // mantener vista: solo re-encuadrar si cambió unidad/granularidad, no el indicador
+  if(barsMode) drawBars(feats,data,idp); else if(barLayer){ map.removeLayer(barLayer); barLayer=null; }
+  const fk=level+'|'+unitId;  // mantener vista: solo re-encuadrar al cambiar de UNIDAD (no indicador, granularidad ni elección)
   if(fk!==mapFitKey){ try{ map.fitBounds(layer.getBounds(),{padding:[22,22],maxZoom:geo==='local'?14:11}); }catch(e){} mapFitKey=fk; }
   renderSide(geo,feats,idp,data); renderResumen(geo,feats.length); renderLeg(); renderSesgos();
 }
+let barLayer=null;
+function barsApplicable(){ return ['part','nulos','margen'].includes(colorby)||colorby.startsWith('cand:'); }
+function featCenter(f){ const g=f.geometry; if(!g) return null; let ring=g.type==='Polygon'?g.coordinates[0]:(g.coordinates[0]&&g.coordinates[0][0]);
+  if(!ring||!ring.length) return null; let x=0,y=0,n=0; for(const p of ring){ x+=p[0]; y+=p[1]; n++; } return n?[y/n,x/n]:null; }
+function drawBars(feats,data,idp){ if(barLayer){ map.removeLayer(barLayer); barLayer=null; } barLayer=L.layerGroup();
+  const vals=feats.map(f=>metricVal(data[String(f.properties[idp])])).filter(v=>v!=null); if(!vals.length){ barLayer.addTo(map); return; }
+  const hi=Math.max(...vals)||100;
+  feats.forEach(f=>{ const u=data[String(f.properties[idp])]; const v=metricVal(u); if(v==null) return; const c=featCenter(f); if(!c) return;
+    const hpx=Math.max(3,Math.min(48, v/hi*48));
+    const icon=L.divIcon({className:'barmk',html:`<div class="mbar" style="height:${hpx}px;background:${seqCol(v)}"></div>`,iconSize:[7,hpx],iconAnchor:[3,hpx]});
+    L.marker(c,{icon,keyboard:false,interactive:false}).addTo(barLayer); });
+  barLayer.addTo(map); }
 function drawClimits(){ if(climitsLayer){ map.removeLayer(climitsLayer); climitsLayer=null; }
   const on=document.getElementById('climits'); if(!on||!on.checked) return;
   const cuts=unitCuts(); const feats=GEOCOM.features.filter(f=>!cuts||cuts.has(+f.properties.cut));

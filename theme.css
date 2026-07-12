@@ -291,3 +291,7 @@ main{position:absolute;top:0;left:298px;right:0;bottom:0;display:flex;flex-direc
   font-size:.78rem;font-weight:600;cursor:pointer;color:var(--navy)}
 .ind-btn:hover{border-color:var(--accent);color:var(--accent)}
 .ind-btn.on{background:var(--navy);color:#fff;border-color:var(--navy)}
+
+#charttype{padding:5px 9px;border:1px solid var(--line-2);border-radius:8px;background:#fff;color:var(--navy);font-size:.78rem;font-weight:600;cursor:pointer}
+.barmk{background:none;border:none}
+.mbar{width:7px;border-radius:2px 2px 0 0;box-shadow:0 0 0 1px rgba(255,255,255,.7);opacity:.92}
