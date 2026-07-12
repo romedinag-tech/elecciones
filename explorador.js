@@ -1,5 +1,5 @@
 // Explorador territorial electoral — workbench: nivel → unidad → módulos. Elección elegida DENTRO de cada módulo.
-const V='36';
+const V='37';
 const LEVELS=[{k:'nacional',lbl:'Nacional'},{k:'region',lbl:'Región'},{k:'distrito',lbl:'Distrito'},
   {k:'circ_senatorial',lbl:'Circ. sen.'},{k:'metro',lbl:'Z. metro'},{k:'comuna',lbl:'Comuna'}];
 const REG_ORDER=[15,1,2,3,4,5,13,6,7,16,8,9,14,10,11,12];
@@ -9,7 +9,7 @@ const OPCION_COL={'APRUEBO':'#3F8E86','A FAVOR':'#3F8E86','RECHAZO':'#C55A11','E
 const SEQ=['#EFF3FB','#C6D9F0','#8CB3DE','#4A80C0','#16365A'];
 const REF_LBL='Presidencial 1ª v. 2025';
 
-let CAT={}, KPI={}, GEOCOM=null, AREAS=null, TIDX={}, CUTMAP={}, REPR={};
+let CAT={}, KPI={}, GEOCOM=null, GEOCOMP=null, AREAS=null, TIDX={}, CUTMAP={}, REPR={};
 let level='nacional', unitId=null, tab='C', elecSel=null, colorby='winner', granul='poligono', chartType='coropleta';
 let mapFitKey=null; const GEOMS={}; let climitsLayer=null;
 let TERR=null; const TERRCACHE={};
@@ -19,11 +19,12 @@ Promise.all([
   fetch('data/catalogo_elecciones.json?v='+V).then(r=>r.json()),
   fetch('data/kpis_niveles.json?v='+V).then(r=>r.json()),
   fetch('data/comunas.geojson?v='+V).then(r=>r.json()),
-  fetch('data/explorador_areas.geojson?v='+V).then(r=>r.json()),
+  fetch('data/areas_pobladas.geojson?v='+V).then(r=>r.json()),  // footprint poblado (recortado a manzanas): no pinta ríos/cerros
+  fetch('data/comunas_pobladas.geojson?v='+V).then(r=>r.json()).catch(()=>null),  // footprint comunal para el render
   fetch('data/territorial_index.json?v='+V).then(r=>r.json()),
   fetch('data/representantes.json?v='+V).then(r=>r.json()).catch(()=>({})),
-]).then(([cat,kpi,gcom,areas,tidx,repr])=>{
-  CAT=cat; KPI=kpi; GEOCOM=gcom; AREAS=areas; TIDX=tidx; REPR=repr;
+]).then(([cat,kpi,gcom,areas,gcomp,tidx,repr])=>{
+  CAT=cat; KPI=kpi; GEOCOM=gcom; AREAS=areas; GEOCOMP=gcomp||gcom; TIDX=tidx; REPR=repr;
   Object.entries(KPI.comuna).forEach(([cut,o])=>CUTMAP[cut]={reg:o.reg,dist:o.dist,circ:o.circ,metro:o.metro,nombre:o.nombre});
   elecSel=defaultElec();
   buildLevels(); buildMenu(); selectUnit('CL');
@@ -235,7 +236,7 @@ function buildGranul(){ const s=document.getElementById('granul'); const opts=[]
 function unitCuts(){ if(level==='comuna') return new Set([+unitId]); if(level==='nacional') return null;
   return new Set(Object.entries(CUTMAP).filter(([c,x])=> level==='region'?x.reg==unitId:level==='distrito'?x.dist==unitId:
     level==='circ_senatorial'?x.circ==unitId:level==='metro'?x.metro===unitId:false).map(([c])=>+c)); }
-function ensureGeom(g){ const file={distrito:'distritos.geojson',region:'regiones.geojson'}[g];
+function ensureGeom(g){ const file={distrito:'distritos.geojson',region:'regiones_pobladas.geojson'}[g];
   if(!file||GEOMS[g]) return Promise.resolve(); return fetch('data/'+file+'?v='+V).then(r=>r.json()).then(d=>{GEOMS[g]=d;}); }
 function aggToLevel(kind){ const cuts=unitCuts(); const out={}; const key=kind==='dist'?'dist':'reg';
   for(const cut in TERR.comuna){ if(cuts&&!cuts.has(+cut)) continue; const cm=CUTMAP[cut]; const g=cm?cm[key]:null; if(g==null) continue;
@@ -252,7 +253,7 @@ function granName(geo){ return geo==='manzana'?'manzanas':geo==='local'?'locales
 function terrSub(){ const cuts=unitCuts(); const g=effGran();
   if(g==='manzana'){ const mz=MANZ[unitId]; return {geo:'manzana', idp:'codigo_rec', data:TERR.local, feats:mz?mz.features:[]}; }
   if(g==='poligono') return {geo:'local', idp:'codigo_rec', data:TERR.local, feats:AREAS.features.filter(f=>!cuts||cuts.has(+f.properties.cut))};
-  if(g==='comuna') return {geo:'comuna', idp:'cut', data:TERR.comuna, feats:GEOCOM.features.filter(f=>!cuts||cuts.has(+f.properties.cut))};
+  if(g==='comuna') return {geo:'comuna', idp:'cut', data:TERR.comuna, feats:GEOCOMP.features.filter(f=>!cuts||cuts.has(+f.properties.cut))};
   if(g==='distrito'){ const data=aggToLevel('dist'); return {geo:'distrito', idp:'distrito_num', data, feats:(GEOMS.distrito?GEOMS.distrito.features:[]).filter(f=>data[f.properties.distrito_num]!=null)}; }
   const data=aggToLevel('reg'); return {geo:'region', idp:'nro_region', data, feats:(GEOMS.region?GEOMS.region.features:[]).filter(f=>data[f.properties.nro_region]!=null)}; }
 function winnerOf(u){ if(!u||!u.val) return null; let bi=null,bv=-1; for(const i in u.v) if(u.v[i]>bv){bv=u.v[i];bi=+i;} return bi==null?null:{i:bi,pct:100*bv/u.val}; }
