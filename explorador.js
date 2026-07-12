@@ -1,5 +1,5 @@
 // Explorador territorial electoral — workbench: nivel → unidad → módulos. Elección elegida DENTRO de cada módulo.
-const V='30';
+const V='31';
 const LEVELS=[{k:'nacional',lbl:'Nacional'},{k:'region',lbl:'Región'},{k:'distrito',lbl:'Distrito'},
   {k:'circ_senatorial',lbl:'Circ. sen.'},{k:'metro',lbl:'Z. metro'},{k:'comuna',lbl:'Comuna'}];
 const REG_ORDER=[15,1,2,3,4,5,13,6,7,16,8,9,14,10,11,12];
@@ -188,9 +188,9 @@ function openElecPanel(){ const p=document.getElementById('elecpanel');
 function indicList(){ const L=[{k:'winner',lbl:'Ganador'},{k:'part',lbl:'Participación'},{k:'cand',lbl:'Candidato'},{k:'nulos',lbl:'Blancos+nulos'},{k:'margen',lbl:'Margen 1º-2º'}];
   if(prevSameType(elecSel)) L.push({k:'swing',lbl:'Swing'});
   if(partnerOf(elecSel)) L.push({k:'split',lbl:'Voto cruzado'});
-  if(hasRounds(elecSel)) L.push({k:'consist',lbl:'Consistencia 1ª/2ª'});
+  // 'consist' (consistencia 1ª/2ª) retirado 2026-07-12: poco comprensible; se reemplazará por traspaso de votos (matriz de transición + Sankey)
   return L; }
-function validColorby(){ const s=new Set(['winner','part','nulos','margen']); if(prevSameType(elecSel))s.add('swing'); if(partnerOf(elecSel))s.add('split'); if(hasRounds(elecSel))s.add('consist'); return s; }
+function validColorby(){ const s=new Set(['winner','part','nulos','margen']); if(prevSameType(elecSel))s.add('swing'); if(partnerOf(elecSel))s.add('split'); return s; }
 function buildIndics(){ const box=document.getElementById('indics'); box.innerHTML='';
   if(!(colorby.startsWith('cand:')||validColorby().has(colorby))) colorby='winner';
   indicList().forEach(I=>{ const b=document.createElement('button'); b.className='ind-btn'; b.textContent=I.lbl;
