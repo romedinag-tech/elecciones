@@ -1,5 +1,5 @@
 // Explorador territorial electoral — workbench: nivel → unidad → módulos. Elección elegida DENTRO de cada módulo.
-const V='34';
+const V='35';
 const LEVELS=[{k:'nacional',lbl:'Nacional'},{k:'region',lbl:'Región'},{k:'distrito',lbl:'Distrito'},
   {k:'circ_senatorial',lbl:'Circ. sen.'},{k:'metro',lbl:'Z. metro'},{k:'comuna',lbl:'Comuna'}];
 const REG_ORDER=[15,1,2,3,4,5,13,6,7,16,8,9,14,10,11,12];
@@ -798,3 +798,9 @@ function scatterSVG(pts,opt){ const W=560,H=230,mL=44,mR=14,mT=12,mB=34; const i
   s+=`<text x="${W-mR}" y="${mT+10}" text-anchor="end" class="td-val">r = ${r>0?'+':''}${r.toFixed(2)}</text>`;
   s+=`<text x="${mL+iw/2}" y="${H-6}" text-anchor="middle" class="td-ax">${opt.xlab}</text>`;
   return s+'</svg>'; }
+
+// Indicador de versión (esquina inferior izquierda) — refleja la versión de caché V para verificación visual
+(function(){ const b=document.createElement('div'); b.id='verbadge'; b.textContent='v'+V; b.title='Versión del dashboard desplegada';
+  b.style.cssText='position:fixed;left:8px;bottom:6px;z-index:1500;font:600 11px Inter,system-ui,sans-serif;color:#8a93a0;'
+    +'background:rgba(255,255,255,.88);padding:2px 8px;border-radius:8px;border:1px solid #e2e6ea;pointer-events:none;user-select:none';
+  document.body.appendChild(b); })();
