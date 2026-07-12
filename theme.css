@@ -138,11 +138,21 @@ main{position:absolute;top:0;left:298px;right:0;bottom:0;display:flex;flex-direc
 #panelC{overflow-y:auto;background:var(--paper)}
 #panelT{overflow:hidden;flex-direction:column}
 #panelT.show{display:flex}
-#terrbody{flex:1;display:flex;min-height:0}
-#mapwrap{flex:1;position:relative;min-width:0}
+/* layout territorial en GRID: mapa 2/3×2/3, KPI lateral 1/3 (alto completo), KPI inferior 2/3×1/3 */
+#terrbody{flex:1;display:grid;grid-template-columns:2fr 1fr;grid-template-rows:2fr 1fr;min-height:0}
+#mapwrap{grid-column:1;grid-row:1;position:relative;min-width:0;min-height:0}
 #mapwrap #map{position:absolute;inset:0;z-index:1}
-#terrside{width:344px;flex:none;overflow-y:auto;background:var(--surface);border-left:1px solid var(--line);
+#terrside{grid-column:2;grid-row:1 / span 2;width:auto;overflow-y:auto;background:var(--surface);border-left:1px solid var(--line);
   padding:14px 15px 30px;font-size:12.5px}
+#terrbottom{grid-column:1;grid-row:2;overflow:auto;background:var(--surface);border-top:1px solid var(--line);padding:10px 14px;font-size:12.5px}
+#terrbottom:empty{display:none}
+#terrbody:has(#terrbottom:empty){grid-template-rows:1fr 0}
+.xg-title{font-weight:700;color:var(--ink);font-size:12.5px;margin-bottom:6px}
+table.xg{border-collapse:separate;border-spacing:3px;font-size:11.5px}
+table.xg th{font-weight:600;color:var(--ink-mid);padding:1px 10px;font-size:10.5px}
+.xg-rk{font-weight:600;color:var(--ink-mid);padding:2px 10px 2px 2px;text-align:right}
+.xg-c{padding:6px 14px;text-align:center;font-variant-numeric:tabular-nums;font-weight:700;border-radius:4px;min-width:44px}
+.xg-note{margin-top:7px;font-size:10.5px;line-height:1.35;color:var(--ink-mid);max-width:560px}
 .ts-tot{margin-bottom:14px}
 .ts-h{font-family:var(--font-display);font-size:1rem;font-weight:700;color:var(--ink);margin-bottom:8px;line-height:1.15}
 .ts-h2{font-size:.66rem;text-transform:uppercase;letter-spacing:.5px;color:var(--navy);font-weight:800;
@@ -261,7 +271,7 @@ main{position:absolute;top:0;left:298px;right:0;bottom:0;display:flex;flex-direc
 .auth-pty{color:var(--ink-lo);font-size:.76rem}
 
 /* ---- Territorial: zona de sesgos bajo el mapa ---- */
-#terrbottom{flex:none;background:var(--surface);border-top:1px solid var(--line);padding:9px 14px 12px;max-height:230px;overflow:auto}
+/* #terrbottom: layout definido en el grid de #terrbody (arriba) */
 .sz-hint{font-size:.8rem;color:var(--ink-mid);padding:5px 2px}
 .sz-hint span{color:var(--ink-lo)}
 .sz-title{font-size:.68rem;text-transform:uppercase;letter-spacing:.5px;color:var(--navy);font-weight:800;margin-bottom:8px}
@@ -309,9 +319,7 @@ main{position:absolute;top:0;left:298px;right:0;bottom:0;display:flex;flex-direc
 .mth-conv{margin-top:5px;font-size:.66rem;font-weight:700;border-radius:5px;padding:2px 6px}
 .mth-conv.ok{background:#e3f1ea;color:#2E8B57} .mth-conv.mid{background:#fbf0e3;color:#C55A11} .mth-conv.no{background:#f7e4e4;color:#B2182B}
 
-/* ---- layout 2/3 mapa + 1/3 panel derecho de KPI ---- */
-#mapwrap{flex:2}
-#terrside{width:auto;flex:1;min-width:230px;max-width:420px}
+/* layout territorial: grid en #terrbody (definido arriba: mapa 2/3×2/3 · lateral 1/3 · inferior 1/3) */
 /* panel de métodos en la columna derecha (vertical) */
 #terrside .mth-row{flex-direction:column;gap:10px}
 #terrside .mth-card{flex:none;min-width:0}

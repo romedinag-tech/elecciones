@@ -1,5 +1,5 @@
 // Explorador territorial electoral — workbench: nivel → unidad → módulos. Elección elegida DENTRO de cada módulo.
-const V='39';
+const V='40';
 const LEVELS=[{k:'nacional',lbl:'Nacional'},{k:'region',lbl:'Región'},{k:'distrito',lbl:'Distrito'},
   {k:'circ_senatorial',lbl:'Circ. sen.'},{k:'metro',lbl:'Z. metro'},{k:'comuna',lbl:'Comuna'}];
 const REG_ORDER=[15,1,2,3,4,5,13,6,7,16,8,9,14,10,11,12];
@@ -203,7 +203,7 @@ function openElecPanel(){ const p=document.getElementById('elecpanel');
         loadTerr(elecSel).then(()=>{ buildCandsel(); buildGranul(); buildIndics(); renderT(); }); }; wrap.appendChild(b); }));
     yr.appendChild(wrap); p.appendChild(yr); });
   p.style.display='block'; }
-function indicList(){ const L=[{k:'winner',lbl:'Ganador'},{k:'part',lbl:'Participación'},{k:'cand',lbl:'Candidato'},{k:'nulos',lbl:'Blancos+nulos'},{k:'margen',lbl:'Margen 1º-2º'}];
+function indicList(){ const L=[{k:'winner',lbl:'Ganador'},{k:'part',lbl:'Participación'},{k:'cand',lbl:'Candidato'},{k:'nulos',lbl:'Blancos+nulos'},{k:'margen',lbl:'Competitividad'}];
   // Swing y Voto cruzado MOVIDOS a Análisis tendencial (spec 2026-07-12). 'consist' retirado antes.
   if(hasRounds(elecSel)) L.push({k:'traspaso',lbl:'Traspaso de votos'});
   L.push({k:'vdc',lbl:'Voto duro/coalición',soon:1});  // llega desde Tendencial → placeholder deshabilitado
@@ -486,10 +486,43 @@ function renderMethods(){ const box=document.getElementById('terrside');
       `<div class="mth-subt">${colorby==='part'?'Tasa <b>observada</b> por grupo (padrón × votantes)':'Inferencia ecológica a <b>nivel de mesa</b>'} · ${ms.length} mesas</div><div class="mth-row">`;
     DEMOS.forEach(D=>{ h+=demoCard(D,ms,s); });
     h+=`</div><div class="sz-note">${colorby==='part'?'<b>Observado</b>: dato oficial de quiénes votaron por grupo (SERVEL).':'<b>King</b>: inferencia ecológica a nivel de mesa (tomografía + MLE, cotas Duncan-Davis) — mismo enfoque que DecideChile. <b>Goodman</b>/<b>LS</b>: contraste. Género/edad/nacionalidad salen del padrón por mesa. Educación no está en el padrón (pendiente por censo).'} Falacia ecológica: estima grupos, no personas.</div></div>`;
-    box.innerHTML=h;
+    box.innerHTML=h; renderCross(ms,s);
   });
 }
+// ===== CRUCE género × edad (panel inferior) =====
+const AGE4=['18-24','25-44','45-59','60+'];
+function heatCol(v){ if(v==null) return '#eee'; const t=Math.max(0,Math.min(1,v/100)); const seq=['#eff3ff','#c6d9f0','#93b7de','#5a8fc7','#2166ac']; return seq[Math.min(4,Math.floor(t*5))]; }
+function crossGrid(title,rows,note,cols){ cols=cols||AGE4;
+  let h=`<div class="xg-title">${title}</div><table class="xg"><tr><th></th>${cols.map(a=>`<th>${a}</th>`).join('')}</tr>`;
+  for(const rk in rows){ h+=`<tr><td class="xg-rk">${rk}</td>`+rows[rk].map(v=>{ const t=(v==null?'—':v.toFixed(0)+'%'); const c=heatCol(v);
+    return `<td class="xg-c" style="background:${c};color:${v!=null&&v>60?'#fff':'#222'}">${t}</td>`; }).join('')+`</tr>`; }
+  h+=`</table>`; if(note) h+=`<div class="xg-note">${note}</div>`; return h;
+}
+const clip01=x=>Math.max(0,Math.min(1,x));
+// Cruce ESTIMADO género × (jóvenes 18-24 / 25+): modelo aditivo de los marginales validados (género y joven/mayor,
+// ambos 2×2 identificables). NO estima la interacción fina (no identificable con dato agregado) → muestra la DIRECCIÓN.
+function addCross(ms){ const P=ms.map(m=>({fm:m.muj/m.t, fj:m.ed[0]/m.t, y:mesaOutcome(m), w:m.t})).filter(p=>p.y!=null&&isFinite(p.y)&&p.w>0);
+  const n=P.length; if(n<20) return null;
+  let mw=0; for(const p of P) mw+=p.w; mw/=n; const w=P.map(p=>p.w/mw);
+  let sy=0,sW=0; for(let i=0;i<n;i++){ sy+=P[i].y*w[i]; sW+=w[i]; } const o=sy/sW;
+  function marg2(sel){ let A=0,B=0,C=0,d1=0,d2=0; for(let i=0;i<n;i++){ const f=sel(P[i]),g=1-f,wi=w[i]; A+=wi*f*f;B+=wi*f*g;C+=wi*g*g;d1+=wi*f*P[i].y;d2+=wi*g*P[i].y; } const det=A*C-B*B||1e-9; return [clip01((C*d1-B*d2)/det),clip01((A*d2-B*d1)/det)]; }
+  const gm=marg2(p=>p.fm), am=marg2(p=>p.fj);  // gm=[Mujer,Hombre], am=[Joven,Mayor]
+  return [[0,0],[1,0],[0,1],[1,1]].map(([g,a])=>clip01(gm[g]+am[a]-o)*100);  // Mj,Hj,Mm,Hm
+}
+function renderCross(ms,s){ const box=document.getElementById('terrbottom'); if(!box) return;
+  if(colorby==='part'){ const ex=s&&s.edad_x_sexo; if(!ex){ box.innerHTML=''; return; }
+    box.innerHTML=crossGrid('Participación por género × edad — <b>observado</b>',
+      {'Mujeres':AGE4.map(a=>ex.M?ex.M[a]:null),'Hombres':AGE4.map(a=>ex.H?ex.H[a]:null)},
+      'Dato oficial (padrón × votantes): % de cada grupo que sufragó. Exacto, sin estimación.'); return; }
+  const b=addCross(ms); if(!b){ box.innerHTML=''; return; }
+  const verb=colorby==='nulos'?'Voto nulo/blanco':'Voto de '+cap((TERR.candidatos[+colorby.slice(5)]||{}).ape1||'');
+  box.innerHTML=crossGrid(`${verb} por género × edad — <b>tendencia estimada</b>`,
+    {'Mujeres':[b[0],b[2]],'Hombres':[b[1],b[3]]},
+    '⚠ <b>Tendencia estimada</b> (modelo aditivo de los sesgos de género y edad, por inferencia ecológica a nivel mesa). Muestra la <b>dirección</b>; la interacción fina no es identificable con el dato agregado.',
+    ['Jóvenes 18-24','25+']);
+}
 function renderRight(geo,feats,idp,data){
+  const tb=document.getElementById('terrbottom'); if(tb) tb.innerHTML='';  // el cruce solo aparece en sesgos
   if(colorby==='traspaso') return renderTraspaso();
   if(colorby==='part'||colorby==='nulos'||colorby.startsWith('cand:')) return renderMethods();
   return renderSummary(geo,feats,idp,data); }
@@ -587,7 +620,7 @@ function renderSummary(geo,feats,idp,data){ const o=(KPI[level]||{})[unitId]||{}
   h+=`</div><div class="sz-note" style="margin-top:10px">Elige <b>Participación</b>, <b>un candidato</b> o <b>Blancos+nulos</b> para estimar los sesgos demográficos por grupo.</div></div>`;
   document.getElementById('terrside').innerHTML=h; }
 function colLabel(){ if(colorby==='winner') return 'ganador'; if(colorby==='part') return 'participación';
-  if(colorby==='margen') return 'margen 1º–2º'; if(colorby==='nulos') return 'blancos + nulos';
+  if(colorby==='margen') return 'competitividad (margen 1º–2º lugar)'; if(colorby==='nulos') return 'blancos + nulos';
   if(colorby==='consist') return 'consistencia 1ª/2ª vuelta';
   if(colorby==='swing') return 'swing vs '+(DIVREF?elecInfo(DIVREF).year:'anterior');
   if(colorby==='split') return 'voto cruzado vs '+(DIVREF?cap(elecInfo(DIVREF).label):'—');
