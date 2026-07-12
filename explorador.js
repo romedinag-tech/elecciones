@@ -1,5 +1,5 @@
 // Explorador territorial electoral — workbench: nivel → unidad → módulos. Elección elegida DENTRO de cada módulo.
-const V='32';
+const V='33';
 const LEVELS=[{k:'nacional',lbl:'Nacional'},{k:'region',lbl:'Región'},{k:'distrito',lbl:'Distrito'},
   {k:'circ_senatorial',lbl:'Circ. sen.'},{k:'metro',lbl:'Z. metro'},{k:'comuna',lbl:'Comuna'}];
 const REG_ORDER=[15,1,2,3,4,5,13,6,7,16,8,9,14,10,11,12];
@@ -411,8 +411,8 @@ let MESA={};
 function ensureMesa(e){ if(MESA[e]) return Promise.resolve();
   return fetch('data/mesa/'+e+'.json?v='+V).then(r=>r.ok?r.json():null).then(d=>{MESA[e]=d||[];}).catch(()=>{MESA[e]=[];}); }
 const DEMOS=[{k:'muj',lbl:'Género',A:'Mujeres',B:'Hombres',frac:m=>m.t?m.muj/m.t:null,m3:s=>s&&s.sexo?[s.sexo.M,s.sexo.H]:null},
-  {k:'jov',lbl:'Edad (jóvenes)',A:'Jóvenes 18–29',B:'30+ años',frac:m=>m.t?m.ed[0]/m.t:null,
-    m3:s=>s&&s.edad?[s.edad['18-29'],(s.edad['30-49']+s.edad['50-64']+s.edad['65+'])/3]:null},
+  {k:'jov',lbl:'Edad (jóvenes)',A:'Jóvenes 18–24',B:'25+ años',frac:m=>m.t?m.ed[0]/m.t:null,
+    m3:s=>s&&s.edad?[s.edad['18-24'],(s.edad['25-44']+s.edad['45-59']+s.edad['60+'])/3]:null},
   {k:'ext',lbl:'Nacionalidad',A:'Extranjeros',B:'Chilenos',frac:m=>m.t?m.ext/m.t:null,m3:s=>s&&s.nac?[s.nac.E,s.nac.C]:null}];
 function mesaOutcome(m){ const valid=Object.values(m.v).reduce((s,v)=>s+v,0);
   if(colorby.startsWith('cand:')) return valid?(m.v[colorby.slice(5)]||0)/valid:null;
