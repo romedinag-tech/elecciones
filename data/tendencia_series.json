@@ -60,8 +60,7 @@
     "Centro-izquierda": 34.01,
     "Centro": 15.55,
     "Centro-derecha": 14.92,
-    "Derecha": 21.31,
-    "Derecha radical": 4.48
+    "Derecha": 21.31
    }
   },
   {
@@ -73,8 +72,7 @@
     "Centro-izquierda": 35.4,
     "Centro": 12.25,
     "Centro-derecha": 22.06,
-    "Derecha": 16.64,
-    "Derecha radical": 1.82
+    "Derecha": 16.64
    }
   },
   {
@@ -88,7 +86,7 @@
     "Populista/Otro": 8.43,
     "Centro-derecha": 14.46,
     "Derecha": 10.99,
-    "Derecha radical": 16.45
+    "Derecha radical": 11.18
    }
   },
   {
@@ -102,7 +100,7 @@
     "Populista/Otro": 11.99,
     "Centro-derecha": 10.72,
     "Derecha": 8.35,
-    "Derecha radical": 25.18
+    "Derecha radical": 23.02
    }
   }
  ]
