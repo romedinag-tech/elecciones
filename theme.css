@@ -278,3 +278,16 @@ main{position:absolute;top:0;left:298px;right:0;bottom:0;display:flex;flex-direc
 .sz-eco{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:2px 20px;margin-top:4px}
 .sz-eco .dr-cor{cursor:default}
 .sz-eco .dr-lbl{width:96px}
+
+/* ---- Territorial: barra de indicadores + granularidad ---- */
+#granul,#candsel{padding:5px 9px;border:1px solid var(--line-2);border-radius:8px;background:#fff;color:var(--navy);font-size:.78rem;font-weight:600;cursor:pointer;max-width:220px}
+#granul:focus,#candsel:focus{outline:none;border-color:var(--accent)}
+.tb-chk{display:inline-flex;align-items:center;gap:5px;font-size:.74rem;color:var(--ink-mid);cursor:pointer;white-space:nowrap;margin-left:auto}
+.tb-chk input{cursor:pointer}
+#indicbar{flex:none;display:flex;align-items:center;gap:8px;height:42px;padding:0 16px;background:var(--surface-alt);
+  border-bottom:1px solid var(--line);overflow-x:auto}
+#indics{display:flex;gap:5px;align-items:center}
+.ind-btn{white-space:nowrap;padding:5px 12px;border:1px solid var(--line-2);background:#fff;border-radius:18px;
+  font-size:.78rem;font-weight:600;cursor:pointer;color:var(--navy)}
+.ind-btn:hover{border-color:var(--accent);color:var(--accent)}
+.ind-btn.on{background:var(--navy);color:#fff;border-color:var(--navy)}

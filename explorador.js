@@ -1,5 +1,5 @@
 // Explorador territorial electoral — workbench: nivel → unidad → módulos. Elección elegida DENTRO de cada módulo.
-const V='21';
+const V='22';
 const LEVELS=[{k:'nacional',lbl:'Nacional'},{k:'region',lbl:'Región'},{k:'distrito',lbl:'Distrito'},
   {k:'circ_senatorial',lbl:'Circ. sen.'},{k:'metro',lbl:'Z. metro'},{k:'comuna',lbl:'Comuna'}];
 const REG_ORDER=[15,1,2,3,4,5,13,6,7,16,8,9,14,10,11,12];
@@ -10,7 +10,8 @@ const SEQ=['#EFF3FB','#C6D9F0','#8CB3DE','#4A80C0','#16365A'];
 const REF_LBL='Presidencial 1ª v. 2025';
 
 let CAT={}, KPI={}, GEOCOM=null, AREAS=null, TIDX={}, CUTMAP={}, REPR={};
-let level='nacional', unitId=null, tab='C', elecSel=null, colorby='winner';
+let level='nacional', unitId=null, tab='C', elecSel=null, colorby='winner', granul='poligono';
+let mapFitKey=null; const GEOMS={}; let climitsLayer=null;
 let TERR=null; const TERRCACHE={};
 let map=null, layer=null, canvas=null, seqRange=null;
 
@@ -93,7 +94,7 @@ function showTab(t){ tab=t;
   document.getElementById('panelR').classList.toggle('show', t==='R');
   if(t==='C') renderC();
   else if(t==='T'){ ensureMap(); document.getElementById('elecBtn').textContent=elecInfo(elecSel).label+' · '+elecInfo(elecSel).year;
-    loadTerr(elecSel).then(()=>{ buildColorby(); setTimeout(()=>{ map.invalidateSize(); renderT(); },30); }); }
+    loadTerr(elecSel).then(()=>{ buildCandsel(); buildGranul(); buildIndics(); setTimeout(()=>{ map.invalidateSize(); renderT(); },30); }); }
   else if(t==='D') renderD();
   else if(t==='R') renderR(); }
 
@@ -167,7 +168,7 @@ function ensureMap(){ if(map) return;
     {attribution:'&copy; OpenStreetMap &copy; CARTO',subdomains:'abcd',maxZoom:19}).addTo(map);
   canvas=L.canvas({padding:.5});
   document.getElementById('elecBtn').onclick=openElecPanel;
-  document.getElementById('colorby').onchange=e=>{ colorby=e.target.value; renderT(); };
+  document.getElementById('climits').onchange=()=>{ if(tab==='T') renderT(); };
   document.addEventListener('click',e=>{ const p=document.getElementById('elecpanel');
     if(p.style.display==='block'&&!p.contains(e.target)&&e.target.id!=='elecBtn'){ p.style.display='none'; } });
 }
@@ -180,27 +181,55 @@ function openElecPanel(){ const p=document.getElementById('elecpanel');
     CAT[y].forEach(fam=> fam.elecciones.forEach(el=>{ const b=document.createElement('button'); b.textContent=el.label; b.title=fam.familia;
       b.className=el.id===elecSel?'on':''; b.onclick=()=>{ elecSel=el.id; colorby='winner'; p.style.display='none';
         document.getElementById('elecBtn').textContent=elecInfo(elecSel).label+' · '+y;
-        loadTerr(elecSel).then(()=>{ buildColorby(); renderT(); }); }; wrap.appendChild(b); }));
+        loadTerr(elecSel).then(()=>{ buildCandsel(); buildGranul(); buildIndics(); renderT(); }); }; wrap.appendChild(b); }));
     yr.appendChild(wrap); p.appendChild(yr); });
   p.style.display='block'; }
-function buildColorby(){ const s=document.getElementById('colorby'); s.innerHTML='';
-  const add=(v,t)=>{ const o=document.createElement('option'); o.value=v; o.textContent=t; s.appendChild(o); };
-  add('winner','Ganador (1ª mayoría)'); add('part','Participación'); add('margen','Margen 1º–2º'); add('nulos','% blancos + nulos');
-  if(prevSameType(elecSel)) add('swing','Swing vs elección anterior');
-  if(partnerOf(elecSel)) add('split','Voto cruzado (mismo día)');
-  if(hasRounds(elecSel)) add('consist','Consistencia 1ª/2ª vuelta');
-  const og=document.createElement('optgroup'); og.label='% por candidato';
-  TERR.candidatos.slice(0,14).forEach(c=>{ const o=document.createElement('option'); o.value='cand:'+c.i; o.textContent='% '+cap(c.nombre); og.appendChild(o); });
-  s.appendChild(og);
-  if(![...s.options].some(o=>o.value===colorby)) colorby='winner';
-  s.value=colorby; }
+function indicList(){ const L=[{k:'winner',lbl:'Ganador'},{k:'part',lbl:'Participación'},{k:'cand',lbl:'Candidato'},{k:'nulos',lbl:'Blancos+nulos'},{k:'margen',lbl:'Margen 1º-2º'}];
+  if(prevSameType(elecSel)) L.push({k:'swing',lbl:'Swing'});
+  if(partnerOf(elecSel)) L.push({k:'split',lbl:'Voto cruzado'});
+  if(hasRounds(elecSel)) L.push({k:'consist',lbl:'Consistencia 1ª/2ª'});
+  return L; }
+function validColorby(){ const s=new Set(['winner','part','nulos','margen']); if(prevSameType(elecSel))s.add('swing'); if(partnerOf(elecSel))s.add('split'); if(hasRounds(elecSel))s.add('consist'); return s; }
+function buildIndics(){ const box=document.getElementById('indics'); box.innerHTML='';
+  if(!(colorby.startsWith('cand:')||validColorby().has(colorby))) colorby='winner';
+  indicList().forEach(I=>{ const b=document.createElement('button'); b.className='ind-btn'; b.textContent=I.lbl;
+    if(I.k==='cand'?colorby.startsWith('cand:'):colorby===I.k) b.classList.add('on');
+    b.onclick=()=>{ if(I.k==='cand'){ colorby='cand:'+candselVal(); showCandsel(true); } else { colorby=I.k; showCandsel(false); } buildIndics(); renderT(); };
+    box.appendChild(b); });
+  showCandsel(colorby.startsWith('cand:')); }
+function candselVal(){ const s=document.getElementById('candsel'); return s&&s.value?+s.value.slice(5):0; }
+function showCandsel(on){ const s=document.getElementById('candsel'); s.style.display=on?'':'none'; if(on) s.value=colorby.startsWith('cand:')?colorby:'cand:0'; }
+function buildCandsel(){ const s=document.getElementById('candsel'); s.innerHTML='';
+  TERR.candidatos.slice(0,20).forEach(c=>{ const o=document.createElement('option'); o.value='cand:'+c.i; o.textContent=cap(c.nombre); s.appendChild(o); });
+  s.onchange=e=>{ colorby=e.target.value; buildIndics(); renderT(); }; }
+function buildGranul(){ const s=document.getElementById('granul'); const opts=[];
+  if(TERR.meta.has_local&&AREAS) opts.push(['poligono','Polígono (local)']);
+  opts.push(['comuna','Comuna'],['distrito','Distrito'],['region','Región']);
+  s.innerHTML=opts.map(([v,t])=>`<option value="${v}">${t}</option>`).join('');
+  if(!opts.some(o=>o[0]===granul)) granul=opts[0][0];
+  s.value=granul; s.onchange=e=>{ granul=e.target.value; mapFitKey=null; renderT(); }; }
 
 function unitCuts(){ if(level==='comuna') return new Set([+unitId]); if(level==='nacional') return null;
   return new Set(Object.entries(CUTMAP).filter(([c,x])=> level==='region'?x.reg==unitId:level==='distrito'?x.dist==unitId:
     level==='circ_senatorial'?x.circ==unitId:level==='metro'?x.metro===unitId:false).map(([c])=>+c)); }
-function terrSub(){ const cuts=unitCuts(); const useLocal=TERR.meta.has_local&&AREAS&&colorby!=='swing'&&colorby!=='split';
-  if(useLocal) return {geo:'local', idp:'codigo_rec', data:TERR.local, feats:AREAS.features.filter(f=>!cuts||cuts.has(+f.properties.cut))};
-  return {geo:'comuna', idp:'cut', data:TERR.comuna, feats:GEOCOM.features.filter(f=>!cuts||cuts.has(+f.properties.cut))}; }
+function ensureGeom(g){ const file={distrito:'distritos.geojson',region:'regiones.geojson'}[g];
+  if(!file||GEOMS[g]) return Promise.resolve(); return fetch('data/'+file+'?v='+V).then(r=>r.json()).then(d=>{GEOMS[g]=d;}); }
+function aggToLevel(kind){ const cuts=unitCuts(); const out={}; const key=kind==='dist'?'dist':'reg';
+  for(const cut in TERR.comuna){ if(cuts&&!cuts.has(+cut)) continue; const cm=CUTMAP[cut]; const g=cm?cm[key]:null; if(g==null) continue;
+    const u=TERR.comuna[cut]; const o=out[g]||(out[g]={val:0,nb:0,v:{},emit:0,ins:0});
+    o.val+=u.val; o.nb+=(u.nb||0); for(const i in u.v) o.v[i]=(o.v[i]||0)+u.v[i];
+    const em=u.val+(u.nb||0); o.emit+=em; if(u.part) o.ins+=em/(u.part/100); }
+  for(const g in out){ const o=out[g]; o.part=o.ins?Math.round(1000*o.emit/o.ins)/10:null; } return out; }
+function effGran(){ let g=granul;
+  if(colorby==='swing'||colorby==='split') g='comuna';
+  if(colorby==='consist'&&(g==='distrito'||g==='region')) g='comuna';
+  if(g==='poligono'&&!(TERR.meta.has_local&&AREAS)) g='comuna'; return g; }
+function granName(geo){ return geo==='local'?'locales':geo==='distrito'?'distritos':geo==='region'?'regiones':'comunas'; }
+function terrSub(){ const cuts=unitCuts(); const g=effGran();
+  if(g==='poligono') return {geo:'local', idp:'codigo_rec', data:TERR.local, feats:AREAS.features.filter(f=>!cuts||cuts.has(+f.properties.cut))};
+  if(g==='comuna') return {geo:'comuna', idp:'cut', data:TERR.comuna, feats:GEOCOM.features.filter(f=>!cuts||cuts.has(+f.properties.cut))};
+  if(g==='distrito'){ const data=aggToLevel('dist'); return {geo:'distrito', idp:'distrito_num', data, feats:(GEOMS.distrito?GEOMS.distrito.features:[]).filter(f=>data[f.properties.distrito_num]!=null)}; }
+  const data=aggToLevel('reg'); return {geo:'region', idp:'nro_region', data, feats:(GEOMS.region?GEOMS.region.features:[]).filter(f=>data[f.properties.nro_region]!=null)}; }
 function winnerOf(u){ if(!u||!u.val) return null; let bi=null,bv=-1; for(const i in u.v) if(u.v[i]>bv){bv=u.v[i];bi=+i;} return bi==null?null:{i:bi,pct:100*bv/u.val}; }
 function candCol(i){ const c=TERR.candidatos[i]; if(!c) return '#b9c0cb'; return c.bloque?(BLOQCOL[c.bloque]||'#b9c0cb'):(OPCION_COL[(c.nombre||'').toUpperCase()]||'#b9c0cb'); }
 function metricVal(u){ if(!u||!u.val) return null;
@@ -256,6 +285,8 @@ function divCol(v){ if(v==null) return '#e5e5e5'; const m=(seqRange&&seqRange.ab
   return DIVPAL[ t<=-0.5?0 : t<=-0.15?1 : t<0.15?2 : t<0.5?3 : 4 ]; }
 
 function renderT(){
+  const eg=effGran();
+  if((eg==='distrito'||eg==='region') && !GEOMS[eg]){ ensureGeom(eg).then(renderT); return; }
   if((colorby==='swing'||colorby==='split') && !TENDCACHE['comuna']){ ensureTendComuna().then(renderT); return; }
   if(colorby==='consist'){ const r=rounds(elecSel); if(!TERRCACHE[r.v1]||!TERRCACHE[r.v2]){ Promise.all([fetchTerr(r.v1),fetchTerr(r.v2)]).then(renderT); return; } }
   if(layer){ map.removeLayer(layer); layer=null; }
@@ -265,14 +296,22 @@ function renderT(){
   else if(colorby==='consist') computeConsist(feats,geo);
   else if(colorby!=='winner'){ const vals=feats.map(f=>metricVal(data[String(f.properties[idp])])).filter(v=>v!=null);
     seqRange={lo:pctl(vals,.05),hi:pctl(vals,.95)}; }
+  const w0=geo==='local'?.7:geo==='comuna'?.6:.8;
   layer=L.geoJSON({type:'FeatureCollection',features:feats},{ renderer:canvas,
-    style:f=>({color:'#fff',weight:geo==='local'?.7:.6,fillColor:colorFeat(data[String(f.properties[idp])],f),fillOpacity:.82}),
+    style:f=>({color:'#fff',weight:w0,fillColor:colorFeat(data[String(f.properties[idp])],f),fillOpacity:.82}),
     onEachFeature:(f,l)=>{ l.bindPopup(popupSub(f,geo,idp,data));
-      l.on('mouseover',()=>l.setStyle({weight:2})); l.on('mouseout',()=>l.setStyle({weight:geo==='local'?.7:.6})); }
+      l.on('mouseover',()=>l.setStyle({weight:2})); l.on('mouseout',()=>l.setStyle({weight:w0})); }
   }).addTo(map);
-  try{ map.fitBounds(layer.getBounds(),{padding:[22,22],maxZoom:geo==='local'?14:11}); }catch(e){}
+  drawClimits();  // límites comunales sobre el relleno
+  const fk=level+'|'+unitId+'|'+eg;  // mantener vista: solo re-encuadrar si cambió unidad/granularidad, no el indicador
+  if(fk!==mapFitKey){ try{ map.fitBounds(layer.getBounds(),{padding:[22,22],maxZoom:geo==='local'?14:11}); }catch(e){} mapFitKey=fk; }
   renderSide(geo,feats,idp,data); renderResumen(geo,feats.length); renderLeg(); renderSesgos();
 }
+function drawClimits(){ if(climitsLayer){ map.removeLayer(climitsLayer); climitsLayer=null; }
+  const on=document.getElementById('climits'); if(!on||!on.checked) return;
+  const cuts=unitCuts(); const feats=GEOCOM.features.filter(f=>!cuts||cuts.has(+f.properties.cut));
+  climitsLayer=L.geoJSON({type:'FeatureCollection',features:feats},{renderer:canvas,interactive:false,
+    style:{color:'#33415a',weight:1.1,fill:false,opacity:.55}}).addTo(map); }
 // ---- sesgos de participación por grupo (bajo el mapa) ----
 let SESGOS={}; const NSE_ORDER=['Alto','Medio-alto','Medio','Medio-bajo','Bajo'];
 function ensureSesgos(){ if(SESGOS[level]) return Promise.resolve();
@@ -288,7 +327,9 @@ function szCard(title,pairs,hint){ return `<div class="sz-card"><div class="sz-h
 let SOCIO={}, SOCIO_LOADED=false;
 function ensureSocio(){ if(SOCIO_LOADED) return Promise.resolve();
   return fetch('data/explorador_socio.json?v='+V).then(r=>r.json()).then(d=>{SOCIO=d;SOCIO_LOADED=true;}).catch(()=>{SOCIO_LOADED=true;}); }
-function renderEcol(){ const box=document.getElementById('terrbottom'); box.innerHTML='<div class="sz-hint">Cargando sesgos…</div>';
+function renderEcol(){ const box=document.getElementById('terrbottom');
+  const eg=effGran(); if(eg==='distrito'||eg==='region'){ box.innerHTML=`<div class="sz-hint">Los sesgos ecológicos se calculan a nivel <b>polígono</b> o <b>comuna</b>. Cambia la granularidad para verlos.</div>`; return; }
+  box.innerHTML='<div class="sz-hint">Cargando sesgos…</div>';
   ensureSocio().then(()=>{ const {geo,idp,data,feats}=terrSub(); const isLocal=geo==='local';
     const vars=isLocal?[['escolaridad','Escolaridad'],['pct_extranjeros','% extranjeros'],['pct_60mas','% 60+ años'],['pct_jov1824','% jóvenes'],['pct_mujeres','% mujeres'],['pct_indigena','% originarios']]
       :[['escol','Escolaridad'],['pct_inmig','% inmigrantes'],['pct_60mas','% 60+ años'],['pct_a1829','% jóvenes'],['casen_ing_pc','Ingreso'],['nse_score','NSE']];
@@ -323,7 +364,7 @@ function renderSesgos(){ const box=document.getElementById('terrbottom');
     h+=`</div>`; box.innerHTML=h;
   });
 }
-function subName(f,geo){ return geo==='local'?(f.properties.recinto||'Local'):cap(f.properties.comuna||''); }
+function subName(f,geo){ return geo==='local'?(f.properties.recinto||'Local'):geo==='distrito'?('Distrito '+f.properties.distrito_num):geo==='region'?cap(f.properties.region||''):cap(f.properties.comuna||''); }
 function popupSub(f,geo,idp,data){ const u=data[String(f.properties[idp])]; const w=u&&winnerOf(u);
   let h=`<b>${subName(f,geo)}</b><br>`;
   if(colorby==='swing'||colorby==='split'){ const dv=DIVMAP[+f.properties.cut];
@@ -348,7 +389,7 @@ function renderSide(geo,feats,idp,data){ const o=(KPI[level]||{})[unitId]||{}; c
   const rows=feats.map(f=>({f,u:data[String(f.properties[idp])]})).filter(x=>x.u&&x.u.val);
   const key=x=> isCon? (CONSIST[String(idOf(x.f))]??-1) : isDiv? (DIVMAP[+x.f.properties.cut] ?? -999) : colorby==='winner'?(winnerOf(x.u)||{}).pct||0 : (metricVal(x.u)??-1);
   rows.sort((a,b)=>key(b)-key(a));
-  h+=`<div class="ts-h2">${feats.length} ${geo==='local'?'locales':'comunas'} · ${colLabel()}</div><div class="ts-list">`;
+  h+=`<div class="ts-h2">${feats.length} ${granName(geo)} · ${colLabel()}</div><div class="ts-list">`;
   h+=rows.slice(0,60).map(({f,u})=>{ const w=winnerOf(u); const wc=w?TERR.candidatos[w.i]:null;
     const dv=isDiv?DIVMAP[+f.properties.cut]:null, cv=isCon?CONSIST[String(idOf(f))]:null;
     const val= isCon? (cv==null?'—':(cv?'consistente':'cambió'))
@@ -368,11 +409,11 @@ function colLabel(){ if(colorby==='winner') return 'ganador'; if(colorby==='part
 function renderResumen(geo,n){ const o=(KPI[level]||{})[unitId]||{};
   let extra='';
   if(colorby==='consist'&&CONSIST_PCT!=null){ const r=rounds(elecSel);
-    extra=`<div class="r-hint"><b>${CONSIST_PCT}%</b> de las ${geo==='local'?'locales':'comunas'} mantuvieron el bloque ganador entre 1ª y 2ª vuelta; el resto cambió. Compara ${elecInfo(r.v1).label} y ${elecInfo(r.v2).label} ${elecInfo(r.v2).year}.</div>`; }
+    extra=`<div class="r-hint"><b>${CONSIST_PCT}%</b> de ${granName(geo)} mantuvieron el bloque ganador entre 1ª y 2ª vuelta; el resto cambió. Compara ${elecInfo(r.v1).label} y ${elecInfo(r.v2).label} ${elecInfo(r.v2).year}.</div>`; }
   else extra=`<div class="r-hint">Máxima desagregación disponible para esta elección. Clic en una unidad para el detalle.</div>`;
   document.getElementById('resumen').innerHTML=`<div class="r-com">${cap(o.nombre||'')}</div>`+
     `<div class="r-el">${TERR.meta.label} ${elecInfo(elecSel).year}</div>`+
-    `${n} ${geo==='local'?'locales de votación':'comunas'} · coloreado por <b>${colLabel()}</b>.`+extra; }
+    `${n} ${granName(geo)} · coloreado por <b>${colLabel()}</b>.`+extra; }
 function renderLeg(){ const el=document.getElementById('leg2');
   if(colorby==='consist'){ el.innerHTML=`<span class="lg" style="width:100%;font-weight:700;color:#333">Consistencia 1ª/2ª vuelta</span>`+
       `<span class="lg"><i style="background:#3F8E86"></i>mismo bloque</span><span class="lg"><i style="background:#C55A11"></i>cambió de bloque</span>`; return; }
