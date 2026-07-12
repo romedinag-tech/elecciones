@@ -308,3 +308,22 @@ main{position:absolute;top:0;left:298px;right:0;bottom:0;display:flex;flex-direc
 .mth-m b{color:var(--ink);font-variant-numeric:tabular-nums}
 .mth-conv{margin-top:5px;font-size:.66rem;font-weight:700;border-radius:5px;padding:2px 6px}
 .mth-conv.ok{background:#e3f1ea;color:#2E8B57} .mth-conv.mid{background:#fbf0e3;color:#C55A11} .mth-conv.no{background:#f7e4e4;color:#B2182B}
+
+/* ---- layout 2/3 mapa + 1/3 panel derecho de KPI ---- */
+#mapwrap{flex:2}
+#terrside{width:auto;flex:1;min-width:230px;max-width:420px}
+/* panel de métodos en la columna derecha (vertical) */
+#terrside .mth-row{flex-direction:column;gap:10px}
+#terrside .mth-card{flex:none;min-width:0}
+.mth-share{font-size:.72rem;color:var(--ink-lo);margin:2px 0 6px}
+.mth-rates{display:flex;flex-direction:column;gap:4px;margin-bottom:5px}
+.mrate{display:flex;align-items:center;gap:7px;font-size:.74rem}
+.mrate .ml{width:74px;flex:none;color:var(--ink-mid);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.mrate .mt{flex:1;height:10px;background:#fff;border:1px solid var(--line);border-radius:5px;overflow:hidden}
+.mrate .mt i{display:block;height:100%;border-radius:5px}
+.mrate .mv{width:38px;text-align:right;font-weight:700;color:var(--ink);flex:none;font-variant-numeric:tabular-nums}
+.mth-gap{font-size:.74rem;font-weight:700;margin:3px 0}
+.mth-mrow{font-size:.66rem;color:var(--ink-lo);line-height:1.5}
+.mth-mrow b{color:var(--ink-mid)}
+.mth-subt{font-size:.68rem;color:var(--ink-lo);margin:2px 0 10px;line-height:1.4}
+.mth-pad{padding:2px 0 10px}
