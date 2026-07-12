@@ -199,7 +199,7 @@
 "eleccion": "2024-10_alcaldes",
 "label": "Alcaldes",
 "tipo": "Alcaldes",
-"has_local": true,
+"has_local": false,
 "n_cand": 1564
 },
 "2024-10_gobernadores_1v": {
