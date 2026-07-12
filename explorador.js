@@ -1,10 +1,16 @@
 // Explorador territorial electoral — workbench: nivel → unidad → módulos. Elección elegida DENTRO de cada módulo.
-const V='44';
+const V='45';
 const LEVELS=[{k:'nacional',lbl:'Nacional'},{k:'region',lbl:'Región'},{k:'distrito',lbl:'Distrito'},
   {k:'circ_senatorial',lbl:'Circ. sen.'},{k:'metro',lbl:'Z. metro'},{k:'comuna',lbl:'Comuna'}];
 const REG_ORDER=[15,1,2,3,4,5,13,6,7,16,8,9,14,10,11,12];
-const BLOQCOL={'Izquierda':'#2166ac','Centro-izquierda':'#67a9cf','Centro':'#9aa0a6','Populista/Otro':'#7b5ea7',
-  'Centro-derecha':'#ef8a62','Derecha':'#d6604d','Derecha radical':'#b2182b'};
+// Escala por sector político (convención chilena: izquierda=rojos, derecha=azules) — paleta de Rodrigo mapeada a bloques
+const BLOQCOL={'Izquierda':'#C62828',        // rojo carmesí (PC)
+  'Centro-izquierda':'#F48FB1',              // rosado (PS/PPD, Socialismo Democrático)
+  'Centro':'#AB47BC',                        // morado (DC/Demócratas/Amarillos)
+  'Populista/Otro':'#FFB300',                // ámbar (PDG/populismos — rompe la escala)
+  'Centro-derecha':'#29B6F6',                // celeste (Evópoli)
+  'Derecha':'#1565C0',                       // azul rey (RN)
+  'Derecha radical':'#4A148C'};              // índigo/purpúreo (Republicano/PSC)
 const OPCION_COL={'APRUEBO':'#3F8E86','A FAVOR':'#3F8E86','RECHAZO':'#C55A11','EN CONTRA':'#C55A11'};
 const SEQ=['#EFF3FB','#C6D9F0','#8CB3DE','#4A80C0','#16365A'];
 const REF_LBL='Presidencial 1ª v. 2025';
@@ -232,9 +238,42 @@ function buildCandsel(){ const s=document.getElementById('candsel'); s.innerHTML
 const MANZ={};  // cache de geojson de manzanas por cut
 function ensureManz(cut){ if(MANZ[cut]!==undefined) return Promise.resolve();
   return fetch('data/manzanas/'+cut+'.geojson?v='+V).then(r=>r.ok?r.json():null).then(d=>{MANZ[cut]=d;}).catch(()=>{MANZ[cut]=null;}); }
+// ===== MODO C: imputación de voto a nivel MANZANA (dasimétrico) =====
+let MANZIMP={}; const MZ_MIN=20;  // umbral de privacidad: no imputar manzanas con < MZ_MIN electores
+function unitGaps(){ // sesgo por grupo (pp, tasaA−tasaB) para el colorby actual, sobre la unidad
+  const s=((SESGOS[level]||{})[unitId]||{})[elecSel]; const g={gen:0,edad:0,nac:0};
+  if(colorby==='part'){ if(s&&s.sexo) g.gen=(s.sexo.M||0)-(s.sexo.H||0);
+    if(s&&s.edad) g.edad=(s.edad['18-24']||0)-((s.edad['25-44']||0)+(s.edad['45-59']||0)+(s.edad['60+']||0))/3;
+    if(s&&s.nac) g.nac=(s.nac.E||0)-(s.nac.C||0); return g; }
+  const ms=unitMesas();
+  for(const [k,fr] of [['gen',m=>m.muj/m.t],['edad',m=>m.ed[0]/m.t],['nac',m=>m.ext/m.t]]){
+    const pts=ms.map(m=>({x:fr(m),y:mesaOutcome(m),w:m.t})).filter(p=>p.x!=null&&isFinite(p.x)&&p.y!=null);
+    const ki=kingEI(pts); g[k]=ki?(ki.A-ki.B)*100:0; }
+  return g;
+}
+function polyRateC(rec){ const u=TERR.local[rec]; if(!u||!u.val) return null;
+  if(colorby==='part') return u.part;
+  const em=u.val+(u.nb||0);
+  if(colorby==='nulos') return em?100*(u.nb||0)/em:null;
+  if(colorby.startsWith('cand:')) return 100*(u.v[+colorby.slice(5)]||0)/u.val; return null; }
+function computeManzImput(feats){ MANZIMP={}; const gp=unitGaps();
+  const poly={};  // codigo_rec → composición agregada de sus manzanas
+  for(const f of feats){ const p=f.properties, rec=p.codigo_rec; if(!rec) continue;
+    const o=poly[rec]||(poly[rec]={pob:0,muj:0,jov:0,ext:0}); o.pob+=p.pob||0; o.muj+=p.muj||0; o.jov+=p.joven||0; o.ext+=p.ext||0; }
+  const vals=[];
+  for(const f of feats){ const p=f.properties, rec=p.codigo_rec, pob=p.pob||0;
+    if(!rec||pob<MZ_MIN||p.muj==null){ MANZIMP[p.manzent]=null; continue; }  // sin composición censal → suprimida
+    const pr=polyRateC(rec), pg=poly[rec];
+    if(pr==null||!pg||!pg.pob){ MANZIMP[p.manzent]=null; continue; }
+    // imputado = tasa observada del polígono + efecto de la desviación composicional de la manzana (calibrado al polígono)
+    let imp=pr + gp.gen*(p.muj/pob - pg.muj/pg.pob) + gp.edad*(p.joven/pob - pg.jov/pg.pob) + gp.nac*(p.ext/pob - pg.ext/pg.pob);
+    imp=Math.max(0,Math.min(100,imp)); MANZIMP[p.manzent]=imp; vals.push(imp); }
+  seqRange={lo:pctl(vals,.05),hi:pctl(vals,.95)};
+}
 function buildGranul(){ const s=document.getElementById('granul'); const opts=[];
   if(TERR.meta.has_local&&AREAS){ opts.push(['poligono','Polígono (local)']);
-    if(level==='comuna') opts.push(['manzana','Manzana (censal)']); }  // manzana: solo comuna (1 archivo)
+    if(level==='comuna'){ opts.push(['manzana','Manzana (observado)']);   // modo B: hereda el valor del polígono
+      opts.push(['manzana_est','Manzana (estimativa)']); } }              // modo C: voto imputado por composición censal
   opts.push(['comuna','Comuna'],['distrito','Distrito'],['region','Región']);
   s.innerHTML=opts.map(([v,t])=>`<option value="${v}">${t}</option>`).join('');
   if(!opts.some(o=>o[0]===granul)) granul=opts[0][0];
@@ -254,11 +293,12 @@ function aggToLevel(kind){ const cuts=unitCuts(); const out={}; const key=kind==
 function effGran(){ let g=granul;
   if(colorby==='swing'||colorby==='split') g='comuna';
   if(colorby==='consist'&&(g==='distrito'||g==='region')) g='comuna';
-  if(g==='manzana'&&(level!=='comuna'||!(TERR.meta.has_local&&AREAS))) g='poligono';  // manzana solo a nivel comuna
+  if((g==='manzana'||g==='manzana_est')&&(level!=='comuna'||!(TERR.meta.has_local&&AREAS))) g='poligono';  // manzana solo a nivel comuna
+  if(g==='manzana_est'&&!(colorby==='part'||colorby==='nulos'||colorby.startsWith('cand:'))) g='manzana';  // imputación solo para indicadores numéricos con estimación
   if(g==='poligono'&&!(TERR.meta.has_local&&AREAS)) g='comuna'; return g; }
 function granName(geo){ return geo==='manzana'?'manzanas':geo==='local'?'locales':geo==='distrito'?'distritos':geo==='region'?'regiones':'comunas'; }
 function terrSub(){ const cuts=unitCuts(); const g=effGran();
-  if(g==='manzana'){ const mz=MANZ[unitId]; return {geo:'manzana', idp:'codigo_rec', data:TERR.local, feats:mz?mz.features:[]}; }
+  if(g==='manzana'||g==='manzana_est'){ const mz=MANZ[unitId]; return {geo:'manzana', idp:'codigo_rec', data:TERR.local, feats:mz?mz.features:[]}; }
   if(g==='poligono') return {geo:'local', idp:'codigo_rec', data:TERR.local, feats:AREAS.features.filter(f=>!cuts||cuts.has(+f.properties.cut))};
   if(g==='comuna') return {geo:'comuna', idp:'cut', data:TERR.comuna, feats:GEOCOMP.features.filter(f=>!cuts||cuts.has(+f.properties.cut))};
   if(g==='distrito'){ const data=aggToLevel('dist'); return {geo:'distrito', idp:'distrito_num', data, feats:(GEOMS.distrito?GEOMS.distrito.features:[]).filter(f=>data[f.properties.distrito_num]!=null)}; }
@@ -274,7 +314,8 @@ function pctl(a,p){ if(!a.length) return null; const s=[...a].sort((x,y)=>x-y); 
 function seqCol(v){ if(v==null) return '#e5e5e5'; const r=seqRange; if(!r||r.hi===r.lo) return SEQ[2];
   const t=Math.max(0,Math.min(1,(v-r.lo)/(r.hi-r.lo))); return SEQ[Math.min(4,Math.floor(t*5))]; }
 function idOf(f){ return f.properties.codigo_rec!=null?f.properties.codigo_rec:f.properties.cut; }
-function colorFeat(u,f){ if(colorby==='consist') return consistCol(CONSIST[String(idOf(f))]);
+function colorFeat(u,f){ if(effGran()==='manzana_est'){ const v=MANZIMP[f.properties.manzent]; return v==null?'#e5e5e5':seqCol(v); }
+  if(colorby==='consist') return consistCol(CONSIST[String(idOf(f))]);
   if(colorby==='swing'||colorby==='split') return divCol(DIVMAP[+f.properties.cut]);
   if(colorby==='winner'||colorby==='traspaso'){ const w=winnerOf(u); return w?candCol(w.i):'#e5e5e5'; } return seqCol(metricVal(u)); }
 
@@ -320,7 +361,10 @@ function divCol(v){ if(v==null) return '#e5e5e5'; const m=(seqRange&&seqRange.ab
 function renderT(){
   const eg=effGran();
   if((eg==='distrito'||eg==='region') && !GEOMS[eg]){ ensureGeom(eg).then(renderT); return; }
-  if(eg==='manzana' && MANZ[unitId]===undefined){ document.getElementById('resumen').innerHTML='Cargando manzanas…'; ensureManz(unitId).then(renderT); return; }
+  if((eg==='manzana'||eg==='manzana_est') && MANZ[unitId]===undefined){ document.getElementById('resumen').innerHTML='Cargando manzanas…'; ensureManz(unitId).then(renderT); return; }
+  if(eg==='manzana_est'){
+    if(MESA[elecSel]===undefined){ document.getElementById('resumen').innerHTML='Estimando manzanas…'; Promise.all([ensureMesa(elecSel),ensureSesgos()]).then(renderT); return; }
+    computeManzImput(terrSub().feats); }
   if((colorby==='swing'||colorby==='split') && !TENDCACHE['comuna']){ ensureTendComuna().then(renderT); return; }
   if(colorby==='consist'){ const r=rounds(elecSel); if(!TERRCACHE[r.v1]||!TERRCACHE[r.v2]){ Promise.all([fetchTerr(r.v1),fetchTerr(r.v2)]).then(renderT); return; } }
   if(layer){ map.removeLayer(layer); layer=null; }
@@ -328,7 +372,7 @@ function renderT(){
   if(!feats.length){ document.getElementById('resumen').innerHTML='Sin sub-unidades para mapear.'; return; }
   if(colorby==='swing'||colorby==='split') computeDivMap(feats);
   else if(colorby==='consist') computeConsist(feats,geo);
-  else if(colorby!=='winner'&&colorby!=='traspaso'){ const vals=feats.map(f=>metricVal(data[String(f.properties[idp])])).filter(v=>v!=null);
+  else if(colorby!=='winner'&&colorby!=='traspaso'&&effGran()!=='manzana_est'){ const vals=feats.map(f=>metricVal(data[String(f.properties[idp])])).filter(v=>v!=null);
     seqRange={lo:pctl(vals,.05),hi:pctl(vals,.95)}; }
   const barsMode = chartType==='barras' && barsApplicable() && feats.length<=700;
   const w0=geo==='local'?.7:geo==='comuna'?.6:.8;
@@ -485,7 +529,7 @@ function renderMethods(){ const box=document.getElementById('terrside');
     let h=`<div class="mth-pad"><div class="sz-title">Sesgos de ${ml}`.replace('Sesgos de el ','Sesgos del ')+`</div>`+
       `<div class="mth-subt">${colorby==='part'?'Tasa <b>observada</b> por grupo (padrón × votantes)':'Inferencia ecológica a <b>nivel de mesa</b>'} · ${ms.length} mesas</div><div class="mth-row">`;
     DEMOS.forEach(D=>{ h+=demoCard(D,ms,s); });
-    h+=`</div><div class="sz-note">${colorby==='part'?'<b>Observado</b>: dato oficial de quiénes votaron por grupo (SERVEL).':'<b>King</b>: inferencia ecológica a nivel de mesa (tomografía + MLE, cotas Duncan-Davis) — mismo enfoque que DecideChile. <b>Goodman</b>/<b>LS</b>: contraste. Género/edad/nacionalidad salen del padrón por mesa. Educación no está en el padrón (pendiente por censo).'} Falacia ecológica: estima grupos, no personas.</div></div>`;
+    h+=`</div>`+ (colorby.startsWith('cand:')?renderCandTop():'') +`<div class="sz-note">${colorby==='part'?'<b>Observado</b>: dato oficial de quiénes votaron por grupo (SERVEL).':'<b>King</b>: inferencia ecológica a nivel de mesa (tomografía + MLE, cotas Duncan-Davis) — mismo enfoque que DecideChile. <b>Goodman</b>/<b>LS</b>: contraste. Género/edad/nacionalidad salen del padrón por mesa. Educación no está en el padrón (pendiente por censo).'} Falacia ecológica: estima grupos, no personas.</div></div>`;
     box.innerHTML=h; renderCross(ms,s);
   });
 }
@@ -507,7 +551,9 @@ function addCross(ms){ const P=ms.map(m=>({fm:m.muj/m.t, fj:m.ed[0]/m.t, y:mesaO
   let sy=0,sW=0; for(let i=0;i<n;i++){ sy+=P[i].y*w[i]; sW+=w[i]; } const o=sy/sW;
   function marg2(sel){ let A=0,B=0,C=0,d1=0,d2=0; for(let i=0;i<n;i++){ const f=sel(P[i]),g=1-f,wi=w[i]; A+=wi*f*f;B+=wi*f*g;C+=wi*g*g;d1+=wi*f*P[i].y;d2+=wi*g*P[i].y; } const det=A*C-B*B||1e-9; return [clip01((C*d1-B*d2)/det),clip01((A*d2-B*d1)/det)]; }
   const gm=marg2(p=>p.fm), am=marg2(p=>p.fj);  // gm=[Mujer,Hombre], am=[Joven,Mayor]
-  return [[0,0],[1,0],[0,1],[1,1]].map(([g,a])=>clip01(gm[g]+am[a]-o)*100);  // Mj,Hj,Mm,Hm
+  // combinación en LOGIT (no aditiva lineal): evita la sobre-composición de dos efectos fuertes en celdas extremas
+  const L=p=>{p=Math.max(1e-4,Math.min(1-1e-4,p)); return Math.log(p/(1-p));}, iL=x=>1/(1+Math.exp(-x));
+  return [[0,0],[1,0],[0,1],[1,1]].map(([g,a])=>iL(L(gm[g])+L(am[a])-L(o))*100);  // Mj,Hj,Mm,Hm
 }
 function renderCross(ms,s){ const box=document.getElementById('terrbottom'); if(!box) return;
   if(colorby==='part'){ const ex=s&&s.edad_x_sexo; if(!ex){ box.innerHTML=''; return; }
@@ -621,25 +667,37 @@ function sankeySVG(r1l,r2l,T,r1){
   return s+`</svg>`;
 }
 function subName(f,geo){ return geo==='manzana'?'Manzana (hereda del local)':geo==='local'?(f.properties.recinto||'Local'):geo==='distrito'?('Distrito '+f.properties.distrito_num):geo==='region'?cap(f.properties.region||''):cap(f.properties.comuna||''); }
+function renderCandTop(){ // top 10 comunas por % y por votos totales del candidato (a lo largo de Chile)
+  const ci=+colorby.slice(5); const rows=[];
+  for(const cut in TERR.comuna){ const u=TERR.comuna[cut]; if(!u||!u.val) continue; const v=u.v[ci]||0;
+    rows.push({nom:cap((KPI.comuna[cut]||{}).nombre||cut), pct:100*v/u.val, vot:v}); }
+  if(!rows.length) return '';
+  const li=(arr,fmt)=>arr.map(r=>`<div class="tl-row"><span class="tl-c">${r.nom}</span><span class="tl-v">${fmt(r)}</span></div>`).join('');
+  const byPct=[...rows].sort((a,b)=>b.pct-a.pct).slice(0,10), byVot=[...rows].sort((a,b)=>b.vot-a.vot).slice(0,10);
+  return `<div class="mth-card" style="min-width:0"><div class="sz-h">Top 10 comunas · ${cap((TERR.candidatos[ci]||{}).ape1||'')}</div>
+    <div class="tl-2"><div><div class="tl-h">Por % en la comuna</div>${li(byPct,r=>r.pct.toFixed(1)+'%')}</div>
+    <div><div class="tl-h">Por votos totales</div>${li(byVot,r=>fmtN(r.vot))}</div></div></div>`;
+}
 function popupSub(f,geo,idp,data){ const u=data[String(f.properties[idp])]; const w=u&&winnerOf(u);
   let h=`<b>${subName(f,geo)}</b><br>`;
   if(colorby==='swing'||colorby==='split'){ const dv=DIVMAP[+f.properties.cut];
     h+=(dv==null?'<span style="color:#888">sin comparable</span>':`${colorby==='swing'?'Swing':'Voto cruzado'}: <b>${dv>0?'+':''}${dv.toFixed(1)} pp</b> ${dv>0?'→ derecha':dv<0?'→ izquierda':''}<br><span style="color:#888">vs ${DIVREF?elecInfo(DIVREF).label+' '+elecInfo(DIVREF).year:'—'}</span>`)+'<br>'; }
   if(colorby==='consist'){ const cv=CONSIST[String(idOf(f))]; h+=(cv==null?'<span style="color:#888">sin comparable</span>':(cv?'<b>Mismo bloque</b> ganó 1ª y 2ª vuelta':'<b>Cambió de bloque</b> entre vueltas'))+'<br>'; }
-  if(colorby==='nulos'&&u&&u.val){ const nb=u.nb||0; h+=`Blancos + nulos: <b>${(100*nb/(u.val+nb)).toFixed(1)}%</b><br>`; }
+  if(colorby==='nulos'&&u&&u.val){ const nb=u.nb||0; h+=`Blancos + nulos: <b>${(100*nb/(u.val+nb)).toFixed(1)}%</b> (${fmtN(nb)} votos)<br>`; }
   if(!u||!w) return h+(colorby==='swing'||colorby==='split'||colorby==='consist'?'':'sin resultado');
   const top=Object.entries(u.v).sort((a,b)=>b[1]-a[1]).slice(0,3)
-    .map(([i,vs])=>`${cap(TERR.candidatos[+i].nombre)}: <b>${(100*vs/u.val).toFixed(1)}%</b>`).join('<br>');
-  h+=top+`<br><span style="color:#888">Participación: ${u.part??'—'}%</span>`; return h; }
-function unitTotals(){ const cuts=unitCuts(); const agg={}; let val=0;
-  for(const cut in TERR.comuna){ if(cuts&&!cuts.has(+cut)) continue; const u=TERR.comuna[cut]; val+=u.val; for(const i in u.v) agg[i]=(agg[i]||0)+u.v[i]; }
-  return {val,v:agg}; }
-function renderSummary(geo,feats,idp,data){ const o=(KPI[level]||{})[unitId]||{}; const tot=unitTotals();
+    .map(([i,vs])=>`${cap(TERR.candidatos[+i].nombre)}: <b>${(100*vs/u.val).toFixed(1)}%</b> · ${fmtN(vs)} votos`).join('<br>');
+  const emit=u.val+(u.nb||0);
+  h+=top+`<br><span style="color:#888">Participación: ${u.part??'—'}% · ${fmtN(emit)} votaron</span>`; return h; }
+function unitTotals(){ const cuts=unitCuts(); const agg={}; let val=0,nb=0;
+  for(const cut in TERR.comuna){ if(cuts&&!cuts.has(+cut)) continue; const u=TERR.comuna[cut]; val+=u.val; nb+=(u.nb||0); for(const i in u.v) agg[i]=(agg[i]||0)+u.v[i]; }
+  return {val,nb,v:agg}; }
+function renderSummary(geo,feats,idp,data){ const o=(KPI[level]||{})[unitId]||{}; const tot=unitTotals(); const emit=tot.val+(tot.nb||0);
   let h=`<div class="mth-pad"><div class="ts-tot"><div class="ts-h">${cap(o.nombre||'')}</div>
-    <div class="mth-subt">${TERR.meta.label} ${elecInfo(elecSel).year} · resultado de la unidad</div>`;
+    <div class="mth-subt">${TERR.meta.label} ${elecInfo(elecSel).year} · <b>${fmtN(emit)}</b> votaron · ${fmtN(tot.val)} válidos</div>`;
   const ranked=Object.entries(tot.v).sort((a,b)=>b[1]-a[1]).slice(0,12);
   h+=ranked.map(([i,vs])=>{ const c=TERR.candidatos[+i]; const pct=100*vs/tot.val;
-    return `<div class="ts-row"><span class="ts-name">${cap(c.nombre)}</span><span class="ts-bar"><i style="width:${pct}%;background:${candCol(+i)}"></i></span><span class="ts-pct">${pct.toFixed(1)}%</span></div>`; }).join('');
+    return `<div class="ts-row"><span class="ts-name">${cap(c.nombre)}</span><span class="ts-bar"><i style="width:${pct}%;background:${candCol(+i)}"></i></span><span class="ts-pct">${pct.toFixed(1)}%<span class="ts-vot">${fmtN(vs)}</span></span></div>`; }).join('');
   h+=`</div><div class="sz-note" style="margin-top:10px">Elige <b>Participación</b>, <b>un candidato</b> o <b>Blancos+nulos</b> para estimar los sesgos demográficos por grupo.</div></div>`;
   document.getElementById('terrside').innerHTML=h; }
 function colLabel(){ if(colorby==='winner') return 'ganador'; if(colorby==='part') return 'participación';
