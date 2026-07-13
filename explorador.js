@@ -1,5 +1,5 @@
 // Explorador territorial electoral — workbench: nivel → unidad → módulos. Elección elegida DENTRO de cada módulo.
-const V='69';
+const V='70';
 // ---- tema claro/oscuro ----
 try{ if(localStorage.getItem('elec_theme')==='dark') document.documentElement.setAttribute('data-theme','dark'); }catch(e){}
 function isDark(){ return document.documentElement.getAttribute('data-theme')==='dark'; }
@@ -223,7 +223,7 @@ function renderCbody(){ const o=(KPI[level]||{})[unitId]; const p=document.getEl
   const oblig=Object.keys(ser).filter(e=>e>='2022-09'&&!e.includes('ppii')&&!e.includes('primarias')).sort()
     .map(e=>({e,y:ser[e].y,lbl:elecInfo(e).label,part:ser[e].part})).filter(x=>x.part!=null);
   let h=`<div class="mod-pad"><div class="c-head"><div><div class="c-name">${cap(o.nombre)}</div>
-    <div class="c-meta">${lvlLbl}${o.reg_nom&&level!=='nacional'&&level!=='region'?' · '+cap(o.reg_nom):''}</div></div></div>`;
+    <div class="c-meta">${lvlLbl}${o.reg_nom&&level!=='nacional'&&level!=='region'?' · '+cap(o.reg_nom):''}</div></div></div><div class="c-bento">`;
   h+=`<div class="kblock"><div class="kbt-h">Padrón y participación</div><div class="kgrid">`+
      card(fmtN(o.inscritos),'Electores inscritos','padrón 2025')+card(fmtP(o.participacion),'Participación','pdte. 2025 1ª v.')+card(fmtN(o.votantes),'Votantes','pdte. 2025 1ª v.')+`</div>`+
      (oblig.length? `<div class="ksub">Participación desde el voto obligatorio (2022→)</div>${partSpark(oblig)}`:'')+`</div>`;
@@ -239,7 +239,7 @@ function renderCbody(){ const o=(KPI[level]||{})[unitId]; const p=document.getEl
      card(fmtD(o.escol),'Escolaridad','años promedio')+card(o.nse_label||'—','Nivel socioeconómico','grupo modal')+card(fmtP(o.pct_activa),'Ocupación','pob. económ. activa')+`</div>`+
      (o.esc_basica!=null?`<div class="ksub">Nivel educacional (población 25+ años)</div>`+bars([['Básica',o.esc_basica,'#C55A11'],['Media',o.esc_media,'#9aa0a6'],['Técnica',o.esc_tecnica,'#6f9fd0'],['Profesional',o.esc_prof,'#4A80C0']]):'')+`</div>`;
   h+=autoridad(o);
-  h+=`<div class="c-foot">Nivel <b>${lvlLbl}</b> · ${fmtN(o.pob_2024)} habitantes. Composición del electorado según quienes votaron; demografía y educación del Censo 2024; ingreso/pobreza de CASEN.</div></div>`;
+  h+=`</div><div class="c-foot">Nivel <b>${lvlLbl}</b> · ${fmtN(o.pob_2024)} habitantes. Composición del electorado según quienes votaron; demografía y educación del Censo 2024; ingreso/pobreza de CASEN.</div></div>`;
   p.innerHTML=h; }
 
 // =================== MÓDULO Análisis territorial ===================

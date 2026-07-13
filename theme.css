@@ -239,7 +239,11 @@ table.xg th{font-weight:600;color:var(--ink-mid);padding:1px 10px;font-size:10.5
 .ph-card h2{font-size:1.3rem;margin:0 0 8px} .ph-card p{color:var(--ink-mid);font-size:.9rem;line-height:1.5;margin:0}
 
 /* tarjetas KPI (Características) */
-.mod-pad{padding:20px 22px 48px;max-width:940px}
+.mod-pad{padding:20px 22px 48px;max-width:1320px}
+/* bento de la ficha (Características): los bloques usan el ancho en 2–3 columnas en vez de dejar franja vacía */
+.c-bento{display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:14px;align-items:start;margin-top:6px}
+.c-bento .kblock{margin:0}
+@media(max-width:720px){.c-bento{grid-template-columns:1fr}}
 .c-head{display:flex;justify-content:space-between;align-items:flex-start;gap:14px;margin-bottom:6px}
 .c-name{font-family:var(--font-display);font-size:1.7rem;font-weight:700;line-height:1.05}
 .c-meta{color:var(--ink-lo);font-size:.76rem;text-transform:uppercase;letter-spacing:.4px;font-weight:600;margin-top:3px}
