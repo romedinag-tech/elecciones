@@ -1,5 +1,5 @@
 // Explorador territorial electoral — workbench: nivel → unidad → módulos. Elección elegida DENTRO de cada módulo.
-const V='61';
+const V='62';
 // ---- tema claro/oscuro ----
 try{ if(localStorage.getItem('elec_theme')==='dark') document.documentElement.setAttribute('data-theme','dark'); }catch(e){}
 function isDark(){ return document.documentElement.getAttribute('data-theme')==='dark'; }
@@ -676,6 +676,8 @@ function demoCard(D,ms,s){ const F=unitFrac(ms,D.frac);
   const by=crossBayes();
   if(by==='loading') return `<div class="mth-card"><div class="sz-h">${D.lbl}</div><div class="sz-hint">Cargando estimación bayesiana…</div></div>`;
   if(by && BYMAP[D.k] && by[BYMAP[D.k].d]) return mCardB(D,F,verb, by[BYMAP[D.k].d], BYMAP[D.k].a, BYMAP[D.k].b);
+  if(by && by!=='loading' && BYMAP[D.k] && !by[BYMAP[D.k].d])  // hay estimación bayesiana pero esta elección no trae esa dimensión (p.ej. nacionalidad en senadores/diputados vía TRICEL)
+    return `<div class="mth-card"><div class="sz-h">${D.lbl}</div><div class="mth-unrel">No disponible para esta elección (la descripción de votantes no incluye ${D.k==='ext'?'nacionalidad':D.lbl.toLowerCase()}).</div></div>`;
   const pts=ms.map(m=>({x:D.frac(m),y:mesaOutcome(m),w:m.t})).filter(p=>p.x!=null&&isFinite(p.x)&&p.y!=null);
   const fit=eiFit(pts); if(!fit) return `<div class="mth-card"><div class="sz-h">${D.lbl}</div><div class="sz-hint">pocas mesas</div></div>`;
   const king=kingEI(pts);
