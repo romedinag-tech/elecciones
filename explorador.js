@@ -1,5 +1,5 @@
 // Explorador territorial electoral — workbench: nivel → unidad → módulos. Elección elegida DENTRO de cada módulo.
-const V='49';
+const V='50';
 const LEVELS=[{k:'nacional',lbl:'Nacional'},{k:'region',lbl:'Región'},{k:'distrito',lbl:'Distrito'},
   {k:'circ_senatorial',lbl:'Circ. sen.'},{k:'metro',lbl:'Z. metro'},{k:'comuna',lbl:'Comuna'}];
 const REG_ORDER=[15,1,2,3,4,5,13,6,7,16,8,9,14,10,11,12];
@@ -218,7 +218,7 @@ function openElecPanel(){ const p=document.getElementById('elecpanel');
     yr.innerHTML=`<div class="ep-y">${y}</div>`; const wrap=document.createElement('div'); wrap.className='ep-els';
     CAT[y].forEach(fam=> fam.elecciones.forEach(el=>{ const b=document.createElement('button'); b.textContent=el.label; b.title=fam.familia;
       b.className=el.id===elecSel?'on':''; b.onclick=()=>{ elecSel=el.id; colorby='winner'; p.style.display='none';
-        const _g=officeGran(elecSel); if(_g) granul=_g;   // granularidad natural del cargo (gob→región, alcalde→comuna, dip→distrito…)
+        const _g=officeGran(elecSel); if(_g) granul=clampGran(_g);   // granularidad natural del cargo, acotada al alcance (gob→región nacional / comuna dentro de una región)
         document.getElementById('elecBtn').textContent=elecInfo(elecSel).label+' · '+y;
         loadTerr(elecSel).then(()=>{ buildCandsel(); buildGranul(); buildIndics(); renderT(); }); }; wrap.appendChild(b); }));
     yr.appendChild(wrap); p.appendChild(yr); });
@@ -289,10 +289,18 @@ function buildGranul(){ const s=document.getElementById('granul'); const opts=[]
   if(TERR.meta.has_local&&AREAS){ opts.push(['poligono','Polígono (local)']);
     if(level==='comuna'){ opts.push(['manzana','Manzana (observado)']);   // modo B: hereda el valor del polígono
       opts.push(['manzana_est','Manzana (estimativa)']); } }              // modo C: voto imputado por composición censal
-  opts.push(['comuna','Comuna'],['distrito','Distrito'],['region','Región']);
+  opts.push(['comuna','Comuna']);
+  if(level==='nacional'||level==='region') opts.push(['distrito','Distrito']);   // distrito no tiene sentido dentro de una comuna
+  if(level==='nacional') opts.push(['region','Región']);                          // región solo a nivel país (dentro de una región es 1 polígono)
   s.innerHTML=opts.map(([v,t])=>`<option value="${v}">${t}</option>`).join('');
-  if(!opts.some(o=>o[0]===granul)) granul=opts[0][0];
+  granul=clampGran(granul); if(!opts.some(o=>o[0]===granul)) granul=opts[0][0];
   s.value=granul; s.onchange=e=>{ granul=e.target.value; renderT(); }; }
+// evita granularidades más gruesas o iguales al alcance (el bug del "1 polígono" al entrar a una región con granularidad Región)
+function clampGran(g){
+  if(g==='region' && level!=='nacional') g='comuna';
+  if(g==='distrito' && !(level==='nacional'||level==='region')) g='comuna';
+  if((g==='comuna'||g==='distrito'||g==='region') && level==='comuna') g=(TERR&&TERR.meta.has_local&&AREAS)?'poligono':'comuna';
+  return g; }
 
 function unitCuts(){ if(level==='comuna') return new Set([+unitId]); if(level==='nacional') return null;
   return new Set(Object.entries(CUTMAP).filter(([c,x])=> level==='region'?x.reg==unitId:level==='distrito'?x.dist==unitId:
@@ -305,7 +313,7 @@ function aggToLevel(kind){ const cuts=unitCuts(); const out={}; const key=kind==
     o.val+=u.val; o.nb+=(u.nb||0); for(const i in u.v) o.v[i]=(o.v[i]||0)+u.v[i];
     const em=u.val+(u.nb||0); o.emit+=em; if(u.part) o.ins+=em/(u.part/100); }
   for(const g in out){ const o=out[g]; o.part=o.ins?Math.round(1000*o.emit/o.ins)/10:null; } return out; }
-function effGran(){ let g=granul;
+function effGran(){ let g=clampGran(granul);   // clamp por alcance (render siempre coherente aunque el dropdown quede stale)
   if(colorby==='swing'||colorby==='split') g='comuna';
   if(colorby==='consist'&&(g==='distrito'||g==='region')) g='comuna';
   if((g==='manzana'||g==='manzana_est')&&(level!=='comuna'||!(TERR.meta.has_local&&AREAS))) g='poligono';  // manzana solo a nivel comuna
