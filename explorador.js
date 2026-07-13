@@ -1,5 +1,5 @@
 // Explorador territorial electoral — workbench: nivel → unidad → módulos. Elección elegida DENTRO de cada módulo.
-const V='53';
+const V='54';
 const LEVELS=[{k:'nacional',lbl:'Nacional'},{k:'region',lbl:'Región'},{k:'distrito',lbl:'Distrito'},
   {k:'circ_senatorial',lbl:'Circ. sen.'},{k:'metro',lbl:'Área metro'},{k:'comuna',lbl:'Comuna'}];
 const REG_ORDER=[15,1,2,3,4,5,13,6,7,16,8,9,14,10,11,12];
@@ -374,20 +374,26 @@ function transferCol(f,t){ if(!TRANSFERFIN) return '#e5e5e5';
 function recolorTransfer(){ if(!layer) return;
   layer.eachLayer(l=>{ if(l.feature) l.setStyle({fillColor:transferCol(l.feature,transferT)}); }); }
 // barras verticales del AUMENTO % de votos (emitidos) 1ª→2ª sobre cada zona
+function keyName(s){ return (s||'').toUpperCase().normalize('NFD').replace(/[̀-ͯ]/g,'').replace(/[^A-Z0-9 ]/g,' ').replace(/\s+/g,' ').trim(); }
+// Aumento %: DOS barras por polígono (una por finalista, con su color de bloque), altura ∝ % de aumento de SUS votos 1ª→2ª
 function drawAumentoBars(feats,geo){ if(barLayer){ map.removeLayer(barLayer); barLayer=null; } barLayer=L.layerGroup();
   const r=rounds(elecSel); const T1=TERRCACHE[r.v1], T2=TERRCACHE[r.v2]; if(!T1||!T2){ barLayer.addTo(map); return; }
+  const fin=[...T2.candidatos].sort((a,b)=>b.vn-a.vn).slice(0,2); if(fin.length<2){ barLayer.addTo(map); return; }
+  const v1idx={}; T1.candidatos.forEach(c=>{ v1idx[keyName(c.nombre)]=c.i; });
+  const fins=fin.map(c=>({i2:c.i, i1:v1idx[keyName(c.nombre)], col:colOfCand(c), name:cap(c.ape1||c.nombre||'')}));
   const d1=geo==='comuna'?T1.comuna:T1.local, d2=geo==='comuna'?T2.comuna:T2.local;
-  const rows=feats.map(f=>{ const id=geo==='comuna'?String(f.properties.cut):String(f.properties.codigo_rec);
-    const u1=d1[id], u2=d2[id]; if(!u1||!u2) return null; const e1=u1.val+(u1.nb||0), e2=u2.val+(u2.nb||0);
-    if(!e1) return null; return {f,v:100*(e2-e1)/e1}; }).filter(Boolean);
-  if(!rows.length){ barLayer.addTo(map); return; } const hi=Math.max(...rows.map(x=>Math.abs(x.v)))||10;
-  const showN=rows.length<=90;  // etiqueta numérica solo si no hay demasiadas zonas
-  rows.forEach(({f,v})=>{ const c=featCenter(f); if(!c) return; const hpx=Math.max(3,Math.min(46,Math.abs(v)/hi*46));
-    const col=v>=0?'#2e7d32':'#c0392b'; const lbl=(v>=0?'+':'')+v.toFixed(0)+'%';
-    const html=showN?`<span class="mbar-n">${lbl}</span><div class="mbar" style="height:${hpx}px;background:${col}"></div>`
-                    :`<div class="mbar" style="height:${hpx}px;background:${col}"></div>`;
-    const icon=L.divIcon({className:'barmk',html,iconSize:[showN?26:7,hpx+(showN?13:0)],iconAnchor:[showN?13:3,hpx+(showN?13:0)]});
-    L.marker(c,{icon,keyboard:false,interactive:false,title:lbl}).addTo(barLayer); });
+  const rows=[]; let hi=1;
+  feats.forEach(f=>{ const id=geo==='comuna'?String(f.properties.cut):String(f.properties.codigo_rec);
+    const u1=d1[id], u2=d2[id]; if(!u1||!u2) return; const c=featCenter(f); if(!c) return;
+    const gs=fins.map(fn=>{ if(fn.i1==null) return null; const a=u1.v[fn.i1]||0, b=u2.v[fn.i2]||0; return a>0?100*(b-a)/a:null; });
+    if(gs.every(g=>g==null)) return; gs.forEach(g=>{ if(g!=null) hi=Math.max(hi,Math.abs(g)); }); rows.push({c,gs}); });
+  if(!rows.length){ barLayer.addTo(map); return; }
+  rows.forEach(({c,gs})=>{ let bars='';
+    gs.forEach((g,k)=>{ if(g==null){ bars+='<span class="mb2 mb2e"></span>'; return; }
+      const hpx=Math.max(2,Math.min(42,Math.abs(g)/hi*42));
+      bars+=`<span class="mb2" style="height:${hpx}px;background:${fins[k].col}" title="${fins[k].name}: ${g>=0?'+':''}${g.toFixed(0)}%"></span>`; });
+    const icon=L.divIcon({className:'barmk',html:`<div class="mbar2">${bars}</div>`,iconSize:[16,44],iconAnchor:[8,44]});
+    L.marker(c,{icon,keyboard:false,interactive:false}).addTo(barLayer); });
   barLayer.addTo(map); }
 // control de vistas + slider sobre el mapa (solo con indicador Traspaso)
 function renderTraspCtl(){ let c=document.getElementById('traspctl');
@@ -752,6 +758,23 @@ function aumentoHTML(){ const r=rounds(elecSel); const ci=+colorby.slice(5); con
   return h+`<div class="xg-note">Crecimiento porcentual de los votos de cada comuna entre 1ª y 2ª vuelta (absorbe a los candidatos eliminados).</div></div>`;
 }
 let botView='cruce'; let _cxMs, _cxS;
+// torta de distribución de votos (unidad actual) con la porción del candidato mostrado destacada + KPI de sus votos
+function pieKpiHTML(){ const tot=unitTotals(); const V=tot.val; if(!V||!colorby.startsWith('cand:')) return '';
+  const ci=+colorby.slice(5);
+  const es=Object.entries(tot.v).map(([i,v])=>({i:+i,v})).filter(e=>e.v>0).sort((a,b)=>b.v-a.v);
+  const cx=68,cy=68,r=58; let a0=-Math.PI/2, paths='';
+  for(const e of es){ const frac=e.v/V, a1=a0+frac*2*Math.PI, sel=e.i===ci, mid=(a0+a1)/2, off=sel?7:0;
+    const ox=off*Math.cos(mid), oy=off*Math.sin(mid), large=frac>0.5?1:0;
+    const x0=cx+r*Math.cos(a0), y0=cy+r*Math.sin(a0), x1=cx+r*Math.cos(a1), y1=cy+r*Math.sin(a1);
+    paths+=`<path d="M${(cx+ox).toFixed(1)},${(cy+oy).toFixed(1)} L${(x0+ox).toFixed(1)},${(y0+oy).toFixed(1)} A${r},${r} 0 ${large} 1 ${(x1+ox).toFixed(1)},${(y1+oy).toFixed(1)} Z" fill="${candCol(e.i)}" opacity="${sel?1:0.5}" stroke="#fff" stroke-width="1"/>`;
+    a0=a1; }
+  const cand=TERR.candidatos[ci]||{}, cv=tot.v[ci]||0, pct=100*cv/V;
+  return `<div class="pie-card"><svg viewBox="0 0 136 136" width="128" height="128" style="flex:none">${paths}</svg>
+    <div class="pie-kpi"><div class="pk-l">Distribución del voto</div>
+      <div class="pk-n" style="color:${candCol(ci)}">${fmtN(cv)}</div>
+      <div class="pk-c"><b>${pct.toFixed(1)}%</b> · ${cap(cand.ape1||cand.nombre||'')}</div>
+      <div class="pk-s">de ${fmtN(V)} votos válidos en ${cap(((KPI[level]||{})[unitId]||{}).nombre||'la unidad')}</div></div></div>`;
+}
 function renderCross(ms,s){ _cxMs=ms; _cxS=s; const box=document.getElementById('terrbottom'); if(!box) return;
   const views=[['cruce','Cruce edad×género'],['barras','Barras por zona']];
   if(hasRounds(elecSel)&&colorby.startsWith('cand:')) views.push(['aumento','Aumento 1ª→2ª']);
@@ -761,7 +784,7 @@ function renderCross(ms,s){ _cxMs=ms; _cxS=s; const box=document.getElementById(
     if(!TERRCACHE[r.v1]){ box.innerHTML=h+'<div class="sz-hint">Cargando 1ª vuelta…</div>'; fetchTerr(r.v1).then(()=>renderCross(ms,s)); return; }
     h+=aumentoHTML(); }
   else if(botView==='barras') h+=barzHTML();
-  else h+=crossHTML(ms,s);
+  else h+=`<div class="bot-flex">${crossHTML(ms,s)}${colorby.startsWith('cand:')?pieKpiHTML():''}</div>`;
   box.innerHTML=h;
   box.querySelectorAll('.bot-seg .trsp-b').forEach(b=>b.onclick=()=>{ botView=b.dataset.bv; renderCross(ms,s); });
 }
@@ -943,8 +966,11 @@ function renderLeg(){ const el=document.getElementById('leg2');
       `<span class="lg"><i style="background:${TRANSFERFIN.col1}"></i>${n(TRANSFERFIN.c1)}</span>`+
       `<span class="lg"><i style="background:${TRANSFERFIN.col2}"></i>${n(TRANSFERFIN.c2)}</span>`+
       `<span class="lg" style="width:100%;color:#888;font-size:11px">Mueve el slider: 1ª = base ideológica · 2ª = resultado real</span>`; return; }
-  if(colorby==='traspaso'&&traspView==='aumento'){ el.innerHTML=`<span class="lg" style="width:100%;font-weight:700;color:#333">Aumento de votos 1ª→2ª (barra por zona)</span>`+
-      `<span class="lg"><i style="background:#2e7d32"></i>subió</span><span class="lg"><i style="background:#c0392b"></i>bajó</span><span class="lg" style="color:#888">altura ∝ magnitud · fondo = ganador 2ª</span>`; return; }
+  if(colorby==='traspaso'&&traspView==='aumento'){ const r=rounds(elecSel); const T2=TERRCACHE[r.v2];
+    const fin=T2?[...T2.candidatos].sort((a,b)=>b.vn-a.vn).slice(0,2):[];
+    el.innerHTML=`<span class="lg" style="width:100%;font-weight:700;color:#333">Aumento de votos 1ª→2ª por finalista</span>`+
+      fin.map(c=>`<span class="lg"><i style="background:${colOfCand(c)}"></i>${cap(c.ape1||c.nombre||'')}</span>`).join('')+
+      `<span class="lg" style="width:100%;color:#888">2 barras por zona · altura ∝ % de aumento de sus votos · fondo = ganador 2ª</span>`; return; }
   if(colorby==='winner'||colorby==='traspaso'){ const used={}; Object.keys(TERR.local||TERR.comuna).length;
     // leyenda por bloque + opciones presentes (el mapa muestra el ganador de fondo; el traspaso va en el panel)
     el.innerHTML=Object.entries(BLOQCOL).map(([b,c])=>`<span class="lg"><i style="background:${c}"></i>${b}</span>`).join('')
