@@ -1,5 +1,5 @@
 // Explorador territorial electoral — workbench: nivel → unidad → módulos. Elección elegida DENTRO de cada módulo.
-const V='55';
+const V='56';
 const LEVELS=[{k:'nacional',lbl:'Nacional'},{k:'region',lbl:'Región'},{k:'distrito',lbl:'Distrito'},
   {k:'circ_senatorial',lbl:'Circ. sen.'},{k:'metro',lbl:'Área metro'},{k:'comuna',lbl:'Comuna'}];
 const REG_ORDER=[15,1,2,3,4,5,13,6,7,16,8,9,14,10,11,12];
@@ -794,7 +794,8 @@ function renderCross(ms,s){ _cxMs=ms; _cxS=s; const box=document.getElementById(
     if(!TERRCACHE[r.v1]){ box.innerHTML=h+'<div class="sz-hint">Cargando 1ª vuelta…</div>'; fetchTerr(r.v1).then(()=>renderCross(ms,s)); return; }
     h+=aumentoHTML(); }
   else if(botView==='barras') h+=barzHTML();
-  else h+=`<div class="bot-flex">${crossHTML(ms,s)}${colorby.startsWith('cand:')?pieKpiHTML():''}</div>`;
+  else { const pie=colorby.startsWith('cand:')?pieKpiHTML():'';
+    h+= pie ? `<div class="bot-2col"><div class="bc-l">${crossHTML(ms,s)}</div><div class="bc-r">${pie}</div></div>` : crossHTML(ms,s); }
   box.innerHTML=h;
   box.querySelectorAll('.bot-seg .trsp-b').forEach(b=>b.onclick=()=>{ botView=b.dataset.bv; renderCross(ms,s); });
 }

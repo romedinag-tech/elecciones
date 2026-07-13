@@ -176,6 +176,9 @@ table.xg th{font-weight:600;color:var(--ink-mid);padding:1px 10px;font-size:10.5
 .barmk .mbar2 .mb2e{width:5px;height:2px;background:#cbd0d6;align-self:flex-end}
 .xg-c .xg-ci{display:block;font-size:9px;font-weight:600;opacity:.75;margin-top:1px}
 .bot-flex{display:flex;gap:22px;align-items:flex-start;flex-wrap:wrap}
+.bot-2col{display:grid;grid-template-columns:1fr 1fr;gap:24px;align-items:start}
+.bot-2col .bc-r{display:flex;align-items:center;justify-content:flex-start;min-width:0}
+@media(max-width:820px){.bot-2col{grid-template-columns:1fr}}
 .pie-card{display:flex;gap:14px;align-items:center;padding:2px 4px}
 .pie-kpi{min-width:130px}
 .pie-kpi .pk-l{font-size:11px;color:var(--ink-mid);font-weight:600;text-transform:uppercase;letter-spacing:.3px}
