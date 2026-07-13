@@ -332,7 +332,59 @@ function colorFeat(u,f){ if(colorby==='conf') return confCol(confVal(f));
   if(effGran()==='manzana_est'){ const v=MANZIMP[f.properties.manzent]; return v==null?'#e5e5e5':seqCol(v); }
   if(colorby==='consist') return consistCol(CONSIST[String(idOf(f))]);
   if(colorby==='swing'||colorby==='split') return divCol(DIVMAP[+f.properties.cut]);
-  if(colorby==='winner'||colorby==='traspaso'){ const w=winnerOf(u); return w?candCol(w.i):'#e5e5e5'; } return seqCol(metricVal(u)); }
+  if(colorby==='traspaso'){ const eg=effGran();
+    if(traspView==='transfer'&&eg!=='distrito'&&eg!=='region') return transferCol(f,transferT);
+    const w=winnerOf(u); return w?candCol(w.i):'#e5e5e5'; }  // vista Ganador y Aumento usan el ganador de fondo
+  if(colorby==='winner'){ const w=winnerOf(u); return w?candCol(w.i):'#e5e5e5'; }
+  return seqCol(metricVal(u)); }
+
+// ===== VISTAS DEL TRASPASO: Ganador · Transferencia (coropleta que muta 1ª→2ª) · Aumento % =====
+let traspView='winner', transferT=1; let TRANSFERMAP={}, TRANSFERFIN=null;
+function colOfCand(c){ if(!c) return '#b9c0cb'; return c.bloque?(BLOQCOL[c.bloque]||'#b9c0cb'):(OPCION_COL[(c.nombre||'').toUpperCase()]||'#b9c0cb'); }
+// precalcula, por sub-unidad, la base de 1ª vuelta (candidatos asignados a cada finalista por cercanía ideológica) y el resultado de 2ª
+function computeTransfer(feats,geo){ TRANSFERMAP={}; TRANSFERFIN=null;
+  const r=rounds(elecSel); const T1=TERRCACHE[r.v1], T2=TERRCACHE[r.v2]; if(!T1||!T2) return;
+  const fin=[...T2.candidatos].sort((a,b)=>b.vn-a.vn).slice(0,2); if(fin.length<2) return;
+  const f1=fin[0], f2=fin[1], e1=f1.eje, e2=f2.eje;
+  TRANSFERFIN={c1:f1,c2:f2,col1:colOfCand(f1),col2:colOfCand(f2)};
+  const side={};  // candidato de 1ª vuelta → finalista más cercano por eje ideológico
+  T1.candidatos.forEach(c=>{ side[c.i]=(c.eje==null||e1==null||e2==null)?null:(Math.abs(c.eje-e1)<=Math.abs(c.eje-e2)?1:2); });
+  const d1=geo==='comuna'?T1.comuna:T1.local, d2=geo==='comuna'?T2.comuna:T2.local;
+  feats.forEach(f=>{ const id=geo==='comuna'?String(f.properties.cut):String(f.properties.codigo_rec);
+    const u2=d2[id]; if(!u2||!u2.val){ TRANSFERMAP[id]=null; return; }
+    let a1=(u2.v[f1.i]||0), a2=(u2.v[f2.i]||0); const as=a1+a2; if(!as){ TRANSFERMAP[id]=null; return; } a1/=as; a2/=as;
+    const u1=d1[id]; let b1=0,b2=0; if(u1&&u1.val){ for(const i in u1.v){ const s=side[i]; if(s===1)b1+=u1.v[i]; else if(s===2)b2+=u1.v[i]; } }
+    const bs=b1+b2; if(bs){ b1/=bs; b2/=bs; } else { b1=a1; b2=a2; }  // sin base 1ª → arranca en el resultado 2ª
+    TRANSFERMAP[id]={b1,b2,a1,a2}; }); }
+function transferCol(f,t){ if(!TRANSFERFIN) return '#e5e5e5';
+  const geo=effGran(); const id=geo==='comuna'?String(f.properties.cut):String(f.properties.codigo_rec);
+  const m=TRANSFERMAP[id]; if(!m) return '#e5e5e5';
+  const s1=(1-t)*m.b1+t*m.a1, s2=(1-t)*m.b2+t*m.a2; return s1>=s2?TRANSFERFIN.col1:TRANSFERFIN.col2; }
+function recolorTransfer(){ if(!layer) return;
+  layer.eachLayer(l=>{ if(l.feature) l.setStyle({fillColor:transferCol(l.feature,transferT)}); }); }
+// barras verticales del AUMENTO % de votos (emitidos) 1ª→2ª sobre cada zona
+function drawAumentoBars(feats,geo){ if(barLayer){ map.removeLayer(barLayer); barLayer=null; } barLayer=L.layerGroup();
+  const r=rounds(elecSel); const T1=TERRCACHE[r.v1], T2=TERRCACHE[r.v2]; if(!T1||!T2){ barLayer.addTo(map); return; }
+  const d1=geo==='comuna'?T1.comuna:T1.local, d2=geo==='comuna'?T2.comuna:T2.local;
+  const rows=feats.map(f=>{ const id=geo==='comuna'?String(f.properties.cut):String(f.properties.codigo_rec);
+    const u1=d1[id], u2=d2[id]; if(!u1||!u2) return null; const e1=u1.val+(u1.nb||0), e2=u2.val+(u2.nb||0);
+    if(!e1) return null; return {f,v:100*(e2-e1)/e1}; }).filter(Boolean);
+  if(!rows.length){ barLayer.addTo(map); return; } const hi=Math.max(...rows.map(x=>Math.abs(x.v)))||10;
+  rows.forEach(({f,v})=>{ const c=featCenter(f); if(!c) return; const hpx=Math.max(3,Math.min(46,Math.abs(v)/hi*46));
+    const col=v>=0?'#2e7d32':'#c0392b';
+    const icon=L.divIcon({className:'barmk',html:`<div class="mbar" style="height:${hpx}px;background:${col}"></div>`,iconSize:[7,hpx],iconAnchor:[3,hpx]});
+    L.marker(c,{icon,keyboard:false,interactive:false,title:(v>=0?'+':'')+v.toFixed(0)+'%'}).addTo(barLayer); });
+  barLayer.addTo(map); }
+// control de vistas + slider sobre el mapa (solo con indicador Traspaso)
+function renderTraspCtl(){ let c=document.getElementById('traspctl');
+  if(!c){ c=document.createElement('div'); c.id='traspctl'; document.getElementById('mapwrap').appendChild(c); }
+  if(colorby!=='traspaso'){ c.style.display='none'; return; }
+  c.style.display='block';
+  const views=[['winner','Ganador'],['transfer','Transferencia'],['aumento','Aumento %']];
+  c.innerHTML=`<div class="tc-seg">`+views.map(([v,l])=>`<button class="trsp-b${traspView===v?' on':''}" data-tv="${v}">${l}</button>`).join('')+`</div>`+
+    (traspView==='transfer'?`<div class="tc-sl"><span>1ª</span><input type="range" id="tSlider" min="0" max="100" value="${Math.round(transferT*100)}"><span>2ª</span></div>`:'');
+  c.querySelectorAll('.trsp-b').forEach(b=>b.onclick=()=>{ traspView=b.dataset.tv; if(traspView==='transfer')transferT=1; renderT(); });
+  const sl=document.getElementById('tSlider'); if(sl) sl.oninput=e=>{ transferT=+e.target.value/100; recolorTransfer(); }; }
 
 // ---- consistencia 1ª/2ª vuelta (bloque ganador se repite entre rondas) ----
 let CONSIST={}, CONSIST_PCT=null;
@@ -383,11 +435,14 @@ function renderT(){
   if((colorby==='swing'||colorby==='split') && !TENDCACHE['comuna']){ ensureTendComuna().then(renderT); return; }
   if(colorby==='consist'){ const r=rounds(elecSel); if(!TERRCACHE[r.v1]||!TERRCACHE[r.v2]){ Promise.all([fetchTerr(r.v1),fetchTerr(r.v2)]).then(renderT); return; } }
   if(colorby==='conf'&&CONF[elecSel]===undefined){ document.getElementById('resumen').innerHTML='Cargando confiabilidad…'; ensureConf(elecSel).then(renderT); return; }
+  if(colorby==='traspaso'&&(traspView==='transfer'||traspView==='aumento')){ const r=rounds(elecSel);
+    if(!TERRCACHE[r.v1]||!TERRCACHE[r.v2]){ document.getElementById('resumen').innerHTML='Cargando ambas vueltas…'; Promise.all([fetchTerr(r.v1),fetchTerr(r.v2)]).then(renderT); return; } }
   if(layer){ map.removeLayer(layer); layer=null; }
   const {geo,idp,data,feats}=terrSub();
   if(!feats.length){ document.getElementById('resumen').innerHTML='Sin sub-unidades para mapear.'; return; }
   if(colorby==='swing'||colorby==='split') computeDivMap(feats);
   else if(colorby==='consist') computeConsist(feats,geo);
+  else if(colorby==='traspaso'&&traspView==='transfer'&&geo!=='distrito'&&geo!=='region') computeTransfer(feats,geo);
   else if(colorby!=='winner'&&colorby!=='traspaso'&&colorby!=='conf'&&effGran()!=='manzana_est'){ const vals=feats.map(f=>metricVal(data[String(f.properties[idp])])).filter(v=>v!=null);
     seqRange={lo:pctl(vals,.05),hi:pctl(vals,.95)}; }
   const barsMode = chartType==='barras' && barsApplicable() && feats.length<=700;
@@ -399,10 +454,11 @@ function renderT(){
   }).addTo(map);
   drawClimits();  // límites comunales sobre el relleno
   if(barsMode) drawBars(feats,data,idp); else if(barLayer){ map.removeLayer(barLayer); barLayer=null; }
+  if(colorby==='traspaso'&&traspView==='aumento') drawAumentoBars(feats,geo);
   const fk=level+'|'+unitId;  // mantener vista: solo re-encuadrar al cambiar de UNIDAD (no indicador, granularidad ni elección)
   // Nacional NO auto-encuadra (deja la vista en la cuenca de Santiago); región/comuna sí se encuadran a su unidad
   if(fk!==mapFitKey){ if(level!=='nacional'){ try{ map.fitBounds(layer.getBounds(),{padding:[22,22],maxZoom:geo==='local'?14:11}); }catch(e){} } mapFitKey=fk; }
-  renderResumen(geo,feats.length); renderLeg(); renderRight(geo,feats,idp,data);
+  renderResumen(geo,feats.length); renderLeg(); renderTraspCtl(); renderRight(geo,feats,idp,data);
 }
 let barLayer=null;
 function barsApplicable(){ return ['part','nulos','margen'].includes(colorby)||colorby.startsWith('cand:'); }
@@ -793,6 +849,13 @@ function renderLeg(){ const el=document.getElementById('leg2');
       `<span class="lg"><i style="background:${CONFRAMP[0]}"></i>0 · distorsión</span>`+
       CONFRAMP.slice(1,4).map(c=>`<span class="lg"><i style="background:${c}"></i></span>`).join('')+
       `<span class="lg"><i style="background:${CONFRAMP[4]}"></i>100 · fiable</span>`; return; }
+  if(colorby==='traspaso'&&traspView==='transfer'&&TRANSFERFIN){ const n=c=>cap(c.ape1||c.nombre||'');
+    el.innerHTML=`<span class="lg" style="width:100%;font-weight:700;color:#333">Transferencia 1ª→2ª · quién lidera</span>`+
+      `<span class="lg"><i style="background:${TRANSFERFIN.col1}"></i>${n(TRANSFERFIN.c1)}</span>`+
+      `<span class="lg"><i style="background:${TRANSFERFIN.col2}"></i>${n(TRANSFERFIN.c2)}</span>`+
+      `<span class="lg" style="width:100%;color:#888;font-size:11px">Mueve el slider: 1ª = base ideológica · 2ª = resultado real</span>`; return; }
+  if(colorby==='traspaso'&&traspView==='aumento'){ el.innerHTML=`<span class="lg" style="width:100%;font-weight:700;color:#333">Aumento de votos 1ª→2ª (barra por zona)</span>`+
+      `<span class="lg"><i style="background:#2e7d32"></i>subió</span><span class="lg"><i style="background:#c0392b"></i>bajó</span><span class="lg" style="color:#888">altura ∝ magnitud · fondo = ganador 2ª</span>`; return; }
   if(colorby==='winner'||colorby==='traspaso'){ const used={}; Object.keys(TERR.local||TERR.comuna).length;
     // leyenda por bloque + opciones presentes (el mapa muestra el ganador de fondo; el traspaso va en el panel)
     el.innerHTML=Object.entries(BLOQCOL).map(([b,c])=>`<span class="lg"><i style="background:${c}"></i>${b}</span>`).join('')
