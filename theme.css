@@ -171,6 +171,7 @@ table.xg th{font-weight:600;color:var(--ink-mid);padding:1px 10px;font-size:10.5
 #traspctl .tc-sl{display:flex;align-items:center;gap:7px;font-size:11px;color:var(--ink-mid);font-weight:700}
 #traspctl .tc-sl input[type=range]{flex:1;accent-color:var(--navy,#16365a);cursor:pointer}
 .barmk .mbar-n{display:block;text-align:center;font-size:9px;font-weight:700;color:#333;line-height:11px;text-shadow:0 0 2px #fff,0 0 2px #fff}
+.xg-c .xg-ci{display:block;font-size:9px;font-weight:600;opacity:.75;margin-top:1px}
 .barz{display:flex;flex-direction:column;gap:2px;max-width:640px}
 .barz-row{display:grid;grid-template-columns:130px 1fr 46px;align-items:center;gap:8px;font-size:10.5px}
 .barz-n{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:var(--ink)}

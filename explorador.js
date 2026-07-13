@@ -1,5 +1,5 @@
 // Explorador territorial electoral — workbench: nivel → unidad → módulos. Elección elegida DENTRO de cada módulo.
-const V='50';
+const V='51';
 const LEVELS=[{k:'nacional',lbl:'Nacional'},{k:'region',lbl:'Región'},{k:'distrito',lbl:'Distrito'},
   {k:'circ_senatorial',lbl:'Circ. sen.'},{k:'metro',lbl:'Z. metro'},{k:'comuna',lbl:'Comuna'}];
 const REG_ORDER=[15,1,2,3,4,5,13,6,7,16,8,9,14,10,11,12];
@@ -17,6 +17,7 @@ const REF_LBL='Presidencial 1ª v. 2025';
 
 let CAT={}, KPI={}, GEOCOM=null, GEOCOMP=null, AREAS=null, TIDX={}, CUTMAP={}, REPR={};
 let CONFIDX={}; const CONF={};  // confiabilidad geográfica: índice (elecciones disponibles) + cache por elección
+let CROSSIDX={}; const CROSSB={};  // cruce bayesiano (EI espacial): índice + cache posterior por elección
 // rampa de confiabilidad 0-100: rojo(distorsión)→ámbar→verde(fiable). Distinta de la paleta política.
 const CONFRAMP=['#c0392b','#e67e22','#f1c40f','#7fb800','#2e7d32'];
 function confCol(v){ if(v==null) return '#e5e5e5'; const t=Math.max(0,Math.min(1,v/100)); return CONFRAMP[Math.min(4,Math.floor(t*5))]; }
@@ -42,8 +43,9 @@ Promise.all([
   fetch('data/territorial_index.json?v='+V).then(r=>r.json()),
   fetch('data/representantes.json?v='+V).then(r=>r.json()).catch(()=>({})),
   fetch('data/confiabilidad_index.json?v='+V).then(r=>r.json()).catch(()=>({})),
-]).then(([cat,kpi,gcom,areas,gcomp,tidx,repr,confidx])=>{
-  CAT=cat; KPI=kpi; GEOCOM=gcom; AREAS=areas; GEOCOMP=gcomp||gcom; TIDX=tidx; REPR=repr; CONFIDX=confidx||{};
+  fetch('data/cross_index.json?v='+V).then(r=>r.json()).catch(()=>({})),
+]).then(([cat,kpi,gcom,areas,gcomp,tidx,repr,confidx,crossidx])=>{
+  CAT=cat; KPI=kpi; GEOCOM=gcom; AREAS=areas; GEOCOMP=gcomp||gcom; TIDX=tidx; REPR=repr; CONFIDX=confidx||{}; CROSSIDX=crossidx||{};
   Object.entries(KPI.comuna).forEach(([cut,o])=>CUTMAP[cut]={reg:o.reg,dist:o.dist,circ:o.circ,metro:o.metro,nombre:o.nombre});
   elecSel=defaultElec();
   buildLevels(); buildMenu(); selectUnit('CL');
@@ -594,10 +596,32 @@ function mCard(D,F,verb,rA,rB,gap,tag,reliable,meta){
   if(!meta.obs){ h+=`<div class="mth-mrow">estimaciones: <b>King</b> ${fmtppCap(meta.gapK)} · <b>Goodman</b> ${fmtppCap(meta.gapG)} · <b>LS</b> ${fmtppCap(meta.gapC)}</div>`;
     if(meta.gapK!=null){ const d=Math.abs(meta.gapK-meta.gapC); h+=`<div class="mth-conv ${d<5?'ok':d<12?'mid':'no'}">${d<5?'✓ King y LS coinciden':d<12?'~ aproximan':'✗ métodos discrepan'}</div>`; } }
   return h+`</div>`; }
+// tarjeta de sesgo desde la POSTERIOR bayesiana (marginal con IC). dim={m,lo,hi}; ai/bi = índices grupo A/B
+const BYMAP={muj:{d:'sexo',a:0,b:1}, jov:{d:'edad',a:0,b:1}, ext:{d:'nac',a:1,b:0}};  // nac: A=Extranjeros(1), B=Chilenos(0)
+function mCardB(D,F,verb,dim,ai,bi){
+  const rA=dim.m[ai], rB=dim.m[bi];
+  if(rA==null||rB==null) return `<div class="mth-card"><div class="sz-h">${D.lbl}</div><div class="mth-unrel">Sin votantes de este grupo en la unidad.</div></div>`;
+  const loA=dim.lo?dim.lo[ai]:null, hiA=dim.hi?dim.hi[ai]:null, wA=(hiA!=null&&loA!=null)?(hiA-loA):0;
+  const loB=dim.lo?dim.lo[bi]:null, hiB=dim.hi?dim.hi[bi]:null;
+  const gap=rA-rB, wide=wA>=30, pc=x=>Math.max(0,Math.min(100,x));
+  const colA=mixHex('#16365a','#c9ced6',Math.min(1,wA/50));  // desatura la barra del grupo A si el IC es ancho
+  let h=`<div class="mth-card${wide?' unrel':''}"><div class="sz-h">${D.lbl}</div>`;
+  h+=`<div class="mth-share"><b>${D.A}</b>${F!=null?` = ${F.toFixed(0)}% del padrón`:''} · de ese grupo, <b>${rA.toFixed(0)}%</b> ${verb} <span class="mth-tag">ESTIMACIÓN BAYESIANA</span></div>`;
+  h+=`<div class="mth-rates">`+
+     `<div class="mrate"><span class="ml">${D.A}</span><span class="mt"><i style="width:${pc(rA)}%;background:${colA}"></i></span><span class="mv">${rA.toFixed(0)}%${wA?` <span class="xg-ci">±${Math.round(wA/2)}</span>`:''}</span></div>`+
+     `<div class="mrate"><span class="ml">${D.B}</span><span class="mt"><i style="width:${pc(rB)}%;background:#9aa0a6"></i></span><span class="mv">${rB.toFixed(0)}%</span></div></div>`+
+     `<div class="mth-gap" style="color:${gap>=0?'#B2182B':'#2166ac'}">Sesgo ${D.A.split(' ')[0]}−${D.B.split(' ')[0]}: ${gap>0?'+':''}${gap.toFixed(0)} pp</div>`+
+     `<div class="mth-mrow">IC90: ${D.A.split(' ')[0]} [${loA}, ${hiA}] · ${D.B.split(' ')[0]} [${loB}, ${hiB}]</div>`;
+  if(wide) h+=`<div class="mth-conv no">IC ancho → poca certeza en este grupo</div>`;
+  return h+`</div>`; }
 function demoCard(D,ms,s){ const F=unitFrac(ms,D.frac);
   const verb=colorby==='part'?'votó':colorby==='nulos'?'votó nulo/blanco':'votó por '+cap((TERR.candidatos[+colorby.slice(5)]||{}).ape1||'');
   if(colorby==='part'){ const m3=D.m3(s); if(!m3||m3[0]==null||m3[1]==null) return `<div class="mth-card"><div class="sz-h">${D.lbl}</div><div class="sz-hint">sin dato observado</div></div>`;
     return mCard(D,F,verb,m3[0],m3[1],m3[0]-m3[1],'observado',true,{obs:true}); }
+  // 1) posterior bayesiano espacial precomputado (marginal con IC) — reemplaza King
+  const by=crossBayes();
+  if(by==='loading') return `<div class="mth-card"><div class="sz-h">${D.lbl}</div><div class="sz-hint">Cargando estimación bayesiana…</div></div>`;
+  if(by && BYMAP[D.k] && by[BYMAP[D.k].d]) return mCardB(D,F,verb, by[BYMAP[D.k].d], BYMAP[D.k].a, BYMAP[D.k].b);
   const pts=ms.map(m=>({x:D.frac(m),y:mesaOutcome(m),w:m.t})).filter(p=>p.x!=null&&isFinite(p.x)&&p.y!=null);
   const fit=eiFit(pts); if(!fit) return `<div class="mth-card"><div class="sz-h">${D.lbl}</div><div class="sz-hint">pocas mesas</div></div>`;
   const king=kingEI(pts);
@@ -640,13 +664,44 @@ function addCross(ms){ const P=ms.map(m=>({fm:m.muj/m.t, fj:m.ed[0]/m.t, y:mesaO
   const L=p=>{p=Math.max(1e-4,Math.min(1-1e-4,p)); return Math.log(p/(1-p));}, iL=x=>1/(1+Math.exp(-x));
   return [[0,0],[1,0],[0,1],[1,1]].map(([g,a])=>iL(L(gm[g])+L(am[a])-L(o))*100);  // Mj,Hj,Mm,Hm
 }
+// ===== cruce BAYESIANO (EI espacial precomputado) =====
+function ensureCrossBayes(e){ if(CROSSB[e]!==undefined) return Promise.resolve();
+  return fetch('data/cross/'+e+'.json?v='+V).then(r=>r.ok?r.json():null).then(d=>{CROSSB[e]=d;}).catch(()=>{CROSSB[e]=null;}); }
+function crossBayes(){ const e=elecSel; if(!CROSSIDX[e]) return null;
+  if(CROSSB[e]===undefined){ ensureCrossBayes(e).then(()=>{ if(typeof renderMethods==='function') renderMethods(); else if(_cxMs!==undefined) renderCross(_cxMs,_cxS); }); return 'loading'; }
+  const D=CROSSB[e]; if(!D) return null;
+  const key = colorby==='nulos'?'nulos' : colorby.startsWith('cand:')?colorby.slice(5) : null; if(key==null) return null;
+  if(level==='comuna') return (D.comuna[String(unitId)]||{})[key]||null;
+  if(level==='region'){ const rid=unitReg(); return rid==null?null:((D.region||{})[String(rid)]||{})[key]||null; }
+  if(level==='nacional') return (D.nacional||{})[key]||null;
+  return null; }  // distrito/circ/metro → sin precómputo (cae al aditivo)
+function hex2rgb(h){ h=h.replace('#',''); return [parseInt(h.slice(0,2),16),parseInt(h.slice(2,4),16),parseInt(h.slice(4,6),16)]; }
+function mixHex(a,b,t){ const A=hex2rgb(a),Bc=hex2rgb(b); return '#'+A.map((x,i)=>Math.round(x+(Bc[i]-x)*t).toString(16).padStart(2,'0')).join(''); }
+function desatCol(v,width){ const k=Math.max(0,Math.min(1,(width||0)/50)); return mixHex(heatCol(v),'#e9e9e9',0.85*k); }  // IC ancho → gris → poca certeza
+function cellObj(by,i){ return {m:by.m?by.m[i]:null, lo:by.lo?by.lo[i]:null, hi:by.hi?by.hi[i]:null}; }
+function crossGridB(title,rows,note){ const cols=['Jóvenes 18-24','25+'];
+  let h=`<div class="xg-title">${title}</div><table class="xg"><tr><th></th>${cols.map(a=>`<th>${a}</th>`).join('')}</tr>`;
+  for(const rk in rows){ h+=`<tr><td class="xg-rk">${rk}</td>`+rows[rk].map(o=>{
+      if(!o||o.m==null) return `<td class="xg-c" style="background:#eee">—</td>`;
+      const w=(o.hi!=null&&o.lo!=null)?(o.hi-o.lo):0; const bg=desatCol(o.m,w); const dark=o.m>60&&w<25;
+      const ci=(o.lo!=null)?`<span class="xg-ci">±${Math.round(w/2)}</span>`:'';
+      return `<td class="xg-c" style="background:${bg};color:${dark?'#fff':'#222'}" title="IC90 [${o.lo}, ${o.hi}]">${o.m.toFixed(0)}%${ci}</td>`; }).join('')+`</tr>`; }
+  h+=`</table>`; if(note) h+=`<div class="xg-note">${note}</div>`; return h; }
+
 function crossHTML(ms,s){
   if(colorby==='part'){ const ex=s&&s.edad_x_sexo; if(!ex) return '<div class="sz-hint">Sin cruce observado.</div>';
     return crossGrid('Participación por género × edad — <b>observado</b>',
       {'Mujeres':AGE4.map(a=>ex.M?ex.M[a]:null),'Hombres':AGE4.map(a=>ex.H?ex.H[a]:null)},
       'Dato oficial (padrón × votantes): % de cada grupo que sufragó. Exacto, sin estimación.'); }
-  const b=addCross(ms); if(!b) return '<div class="sz-hint">Pocas mesas para estimar.</div>';
   const verb=colorby==='nulos'?'Voto nulo/blanco':'Voto de '+cap((TERR.candidatos[+colorby.slice(5)]||{}).ape1||'');
+  // 1) posterior bayesiano espacial (precomputado) si existe para esta elección/unidad
+  const by=crossBayes();
+  if(by==='loading') return '<div class="sz-hint">Cargando estimación bayesiana…</div>';
+  if(by) return crossGridB(`${verb} por género × edad — <b>estimación bayesiana</b>`,
+    {'Mujeres':[cellObj(by,0),cellObj(by,2)],'Hombres':[cellObj(by,1),cellObj(by,3)]},
+    '<b>Inferencia ecológica bayesiana espacial</b> (NUTS + prior de vecindad ICAR): reconcilia con el % real y propaga incertidumbre. Celda <b>desaturada</b> = intervalo de credibilidad ancho (poca certeza); <b>±N</b> = medio ancho del IC90.');
+  // 2) fallback: aditivo-logit en vivo (elecciones sin precómputo, o niveles distrito/metro)
+  const b=addCross(ms); if(!b) return '<div class="sz-hint">Pocas mesas para estimar.</div>';
   return crossGrid(`${verb} por género × edad — <b>tendencia estimada</b>`,
     {'Mujeres':[b[0],b[2]],'Hombres':[b[1],b[3]]},
     '⚠ <b>Tendencia estimada</b> (modelo aditivo de los sesgos de género y edad, por inferencia ecológica a nivel mesa). Muestra la <b>dirección</b>; la interacción fina no es identificable con el dato agregado.',
@@ -675,8 +730,8 @@ function aumentoHTML(){ const r=rounds(elecSel); const ci=+colorby.slice(5); con
   h+=top.map(r=>`<div class="barz-row"><span class="barz-n" title="${r.nom}: ${fmtN(r.v1)}→${fmtN(r.v2)}">${r.nom}</span><span class="barz-b"><i style="width:${Math.max(2,100*Math.abs(r.inc)/max)}%;background:#2E8B57"></i></span><span class="barz-v">+${r.inc.toFixed(0)}%</span></div>`).join('');
   return h+`<div class="xg-note">Crecimiento porcentual de los votos de cada comuna entre 1ª y 2ª vuelta (absorbe a los candidatos eliminados).</div></div>`;
 }
-let botView='cruce';
-function renderCross(ms,s){ const box=document.getElementById('terrbottom'); if(!box) return;
+let botView='cruce'; let _cxMs, _cxS;
+function renderCross(ms,s){ _cxMs=ms; _cxS=s; const box=document.getElementById('terrbottom'); if(!box) return;
   const views=[['cruce','Cruce edad×género'],['barras','Barras por zona']];
   if(hasRounds(elecSel)&&colorby.startsWith('cand:')) views.push(['aumento','Aumento 1ª→2ª']);
   if(!views.some(v=>v[0]===botView)) botView='cruce';
