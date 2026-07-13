@@ -1,5 +1,5 @@
 // Explorador territorial electoral — workbench: nivel → unidad → módulos. Elección elegida DENTRO de cada módulo.
-const V='54';
+const V='55';
 const LEVELS=[{k:'nacional',lbl:'Nacional'},{k:'region',lbl:'Región'},{k:'distrito',lbl:'Distrito'},
   {k:'circ_senatorial',lbl:'Circ. sen.'},{k:'metro',lbl:'Área metro'},{k:'comuna',lbl:'Comuna'}];
 const REG_ORDER=[15,1,2,3,4,5,13,6,7,16,8,9,14,10,11,12];
@@ -273,7 +273,11 @@ function polyRateC(rec){ const u=TERR.local[rec]; if(!u||!u.val) return null;
   const em=u.val+(u.nb||0);
   if(colorby==='nulos') return em?100*(u.nb||0)/em:null;
   if(colorby.startsWith('cand:')) return 100*(u.v[+colorby.slice(5)]||0)/u.val; return null; }
-function computeManzImput(feats){ MANZIMP={}; const gp=unitGaps();
+function manzBayesCells(){ const by=(colorby.startsWith('cand:')||colorby==='nulos')?crossBayes():null;  // [p_MJ,p_HJ,p_MM,p_HM] posterior comunal
+  return (by&&by!=='loading'&&by.cells&&by.cells.m&&by.cells.m.every(x=>x!=null))?by.cells.m:null; }
+function computeManzImput(feats){ MANZIMP={};
+  const bc=manzBayesCells();            // si hay posterior bayesiana → dasimétrico con β por celda; si no → brechas EI
+  const gp=bc?null:unitGaps();
   const poly={};  // codigo_rec → composición agregada de sus manzanas
   for(const f of feats){ const p=f.properties, rec=p.codigo_rec; if(!rec) continue;
     const o=poly[rec]||(poly[rec]={pob:0,muj:0,jov:0,ext:0}); o.pob+=p.pob||0; o.muj+=p.muj||0; o.jov+=p.joven||0; o.ext+=p.ext||0; }
@@ -282,8 +286,12 @@ function computeManzImput(feats){ MANZIMP={}; const gp=unitGaps();
     if(!rec||pob<MZ_MIN||p.muj==null){ MANZIMP[p.manzent]=null; continue; }  // sin composición censal → suprimida
     const pr=polyRateC(rec), pg=poly[rec];
     if(pr==null||!pg||!pg.pob){ MANZIMP[p.manzent]=null; continue; }
-    // imputado = tasa observada del polígono + efecto de la desviación composicional de la manzana (calibrado al polígono)
-    let imp=pr + gp.gen*(p.muj/pob - pg.muj/pg.pob) + gp.edad*(p.joven/pob - pg.jov/pg.pob) + gp.nac*(p.ext/pob - pg.ext/pg.pob);
+    let imp;
+    if(bc){ // desviación composicional (celdas género×edad de la manzana vs polígono) ponderada por la propensión BAYESIANA de cada celda
+      const mw=p.muj/pob, mj=p.joven/pob, pw=pg.muj/pg.pob, pj=pg.jov/pg.pob;
+      const mf=[mw*mj,(1-mw)*mj,mw*(1-mj),(1-mw)*(1-mj)], pf=[pw*pj,(1-pw)*pj,pw*(1-pj),(1-pw)*(1-pj)];
+      let dev=0; for(let k=0;k<4;k++) dev+=(mf[k]-pf[k])*bc[k]; imp=pr+dev;
+    } else imp=pr + gp.gen*(p.muj/pob - pg.muj/pg.pob) + gp.edad*(p.joven/pob - pg.jov/pg.pob) + gp.nac*(p.ext/pob - pg.ext/pg.pob);
     imp=Math.max(0,Math.min(100,imp)); MANZIMP[p.manzent]=imp; vals.push(imp); }
   seqRange={lo:pctl(vals,.05),hi:pctl(vals,.95)};
 }
@@ -451,7 +459,7 @@ function renderT(){
   if((eg==='distrito'||eg==='region') && !GEOMS[eg]){ ensureGeom(eg).then(renderT); return; }
   if((eg==='manzana'||eg==='manzana_est') && MANZ[unitId]===undefined){ document.getElementById('resumen').innerHTML='Cargando manzanas…'; ensureManz(unitId).then(renderT); return; }
   if(eg==='manzana_est'){
-    if(MESA[elecSel]===undefined){ document.getElementById('resumen').innerHTML='Estimando manzanas…'; Promise.all([ensureMesa(elecSel),ensureSesgos()]).then(renderT); return; }
+    if(MESA[elecSel]===undefined||CROSSB[elecSel]===undefined){ document.getElementById('resumen').innerHTML='Estimando manzanas…'; Promise.all([ensureMesa(elecSel),ensureSesgos(),ensureCrossBayes(elecSel)]).then(renderT); return; }
     computeManzImput(terrSub().feats); }
   if((colorby==='swing'||colorby==='split') && !TENDCACHE['comuna']){ ensureTendComuna().then(renderT); return; }
   if(colorby==='consist'){ const r=rounds(elecSel); if(!TERRCACHE[r.v1]||!TERRCACHE[r.v2]){ Promise.all([fetchTerr(r.v1),fetchTerr(r.v2)]).then(renderT); return; } }
@@ -609,8 +617,9 @@ function mCardB(D,F,verb,dim,ai,bi){
   if(rA==null||rB==null) return `<div class="mth-card"><div class="sz-h">${D.lbl}</div><div class="mth-unrel">Sin votantes de este grupo en la unidad.</div></div>`;
   const loA=dim.lo?dim.lo[ai]:null, hiA=dim.hi?dim.hi[ai]:null, wA=(hiA!=null&&loA!=null)?(hiA-loA):0;
   const loB=dim.lo?dim.lo[bi]:null, hiB=dim.hi?dim.hi[bi]:null;
-  const gap=rA-rB, wide=wA>=30, pc=x=>Math.max(0,Math.min(100,x));
-  const colA=mixHex('#16365a','#c9ced6',Math.min(1,wA/50));  // desatura la barra del grupo A si el IC es ancho
+  const lowBase = F!=null && F<1.5;  // grupo <1,5% del padrón (p.ej. extranjeros en comuna sin inmigración) → base muy chica, la posterior la fija el prior espacial
+  const gap=rA-rB, wide=wA>=30||lowBase, pc=x=>Math.max(0,Math.min(100,x));
+  const colA=mixHex('#16365a','#c9ced6',Math.min(1,(lowBase?45:wA)/50));  // desatura la barra del grupo A si el IC es ancho o la base es chica
   let h=`<div class="mth-card${wide?' unrel':''}"><div class="sz-h">${D.lbl}</div>`;
   h+=`<div class="mth-share"><b>${D.A}</b>${F!=null?` = ${F.toFixed(0)}% del padrón`:''} · de ese grupo, <b>${rA.toFixed(0)}%</b> ${verb} <span class="mth-tag">ESTIMACIÓN BAYESIANA</span></div>`;
   h+=`<div class="mth-rates">`+
@@ -618,7 +627,8 @@ function mCardB(D,F,verb,dim,ai,bi){
      `<div class="mrate"><span class="ml">${D.B}</span><span class="mt"><i style="width:${pc(rB)}%;background:#9aa0a6"></i></span><span class="mv">${rB.toFixed(0)}%</span></div></div>`+
      `<div class="mth-gap" style="color:${gap>=0?'#B2182B':'#2166ac'}">Sesgo ${D.A.split(' ')[0]}−${D.B.split(' ')[0]}: ${gap>0?'+':''}${gap.toFixed(0)} pp</div>`;
   if(loA!=null) h+=`<div class="mth-mrow">IC90: ${D.A.split(' ')[0]} [${loA}, ${hiA}] · ${D.B.split(' ')[0]} [${loB}, ${hiB}]</div>`;
-  if(wide) h+=`<div class="mth-conv no">IC ancho → poca certeza en este grupo</div>`;
+  if(lowBase) h+=`<div class="mth-conv no">Grupo &lt;1,5% del padrón → base muy chica, estimación poco robusta (la fija el prior espacial)</div>`;
+  else if(wide) h+=`<div class="mth-conv no">IC ancho → poca certeza en este grupo</div>`;
   return h+`</div>`; }
 function demoCard(D,ms,s){ const F=unitFrac(ms,D.frac);
   const verb=colorby==='part'?'votó':colorby==='nulos'?'votó nulo/blanco':'votó por '+cap((TERR.candidatos[+colorby.slice(5)]||{}).ape1||'');
