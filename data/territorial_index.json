@@ -87,7 +87,7 @@
 "eleccion": "2020-10_plebiscito",
 "label": "Plebiscito",
 "tipo": "Plebiscito",
-"has_local": false,
+"has_local": true,
 "n_cand": 4
 },
 "2021-05_alcaldes": {
@@ -108,14 +108,14 @@
 "eleccion": "2021-05_convencion_generales",
 "label": "Convención",
 "tipo": "Convencion",
-"has_local": false,
+"has_local": true,
 "n_cand": 1277
 },
 "2021-05_convencion_ppii": {
 "eleccion": "2021-05_convencion_ppii",
 "label": "Convención (PPII)",
 "tipo": "Convencion",
-"has_local": false,
+"has_local": true,
 "n_cand": 95
 },
 "2021-05_gobernadores_1v": {
@@ -143,7 +143,7 @@
 "eleccion": "2021-11_diputados",
 "label": "Diputados",
 "tipo": "Diputados",
-"has_local": false,
+"has_local": true,
 "n_cand": 1254
 },
 "2021-11_presidencial_1v": {
@@ -157,7 +157,7 @@
 "eleccion": "2021-11_senadores",
 "label": "Senadores",
 "tipo": "Senadores",
-"has_local": false,
+"has_local": true,
 "n_cand": 173
 },
 "2021-12_presidencial_2v": {
@@ -171,35 +171,35 @@
 "eleccion": "2022-09_plebiscito_salida",
 "label": "Plebiscito salida",
 "tipo": "Plebiscito",
-"has_local": false,
+"has_local": true,
 "n_cand": 4
 },
 "2023-05_consejo_generales": {
 "eleccion": "2023-05_consejo_generales",
 "label": "Consejo Const.",
 "tipo": "ConsejoConstitucional",
-"has_local": false,
+"has_local": true,
 "n_cand": 351
 },
 "2023-05_consejo_ppii": {
 "eleccion": "2023-05_consejo_ppii",
 "label": "Consejo Const. (PPII)",
 "tipo": "ConsejoConstitucional",
-"has_local": false,
+"has_local": true,
 "n_cand": 1
 },
 "2023-12_plebiscito": {
 "eleccion": "2023-12_plebiscito",
 "label": "Plebiscito",
 "tipo": "Plebiscito",
-"has_local": false,
+"has_local": true,
 "n_cand": 4
 },
 "2024-10_alcaldes": {
 "eleccion": "2024-10_alcaldes",
 "label": "Alcaldes",
 "tipo": "Alcaldes",
-"has_local": false,
+"has_local": true,
 "n_cand": 1564
 },
 "2024-10_gobernadores_1v": {
@@ -227,7 +227,7 @@
 "eleccion": "2025-11_diputados",
 "label": "Diputados",
 "tipo": "Diputados",
-"has_local": false,
+"has_local": true,
 "n_cand": 1095
 },
 "2025-11_presidencial_1v": {
