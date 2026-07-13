@@ -2,21 +2,7 @@
    theme.css — sistema de diseño institucional (replica del dashboard de uso de suelo).
    Tokens de color/tipografía + componentes. Papel claro, navy institucional.
    ========================================================================== */
-:root{
-  --paper:#FBFBFD; --surface:#FFFFFF; --surface-alt:#F4F6F9; --line:#E3E8EF; --line-2:#D6DEE9;
-  --ink:#0E2338; --ink-mid:#4A5A70; --ink-lo:#7C8AA0;
-  --navy:#16365a; --navy2:#21507F; --accent:#1F6FEB; --focus:#1F6FEB;
-  --mut:var(--ink-mid); --mut-2:var(--ink-lo); --or:#C55A11; --teal:#3F8E86; --green:#2E8B57; --red:#B2182B;
-  --grad:linear-gradient(135deg,#0E2338 0%,#16365a 60%,#21507F 100%);
-  --r:14px; --r-sm:10px; --r-lg:18px;
-  --sh-sm:0 1px 2px rgba(14,35,56,.04),0 1px 3px rgba(14,35,56,.04);
-  --sh:0 1px 3px rgba(14,35,56,.05),0 8px 24px rgba(14,35,56,.05);
-  --sh-lg:0 14px 40px rgba(14,35,56,.11);
-  --font-display:'Source Serif 4','Georgia',serif;
-  --font-ui:'Inter',-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;
-  --seq-1:#EFF3FB; --seq-2:#C6D9F0; --seq-3:#8CB3DE; --seq-4:#4A80C0; --seq-5:#16365A;
-  --div-neg:#B2182B; --div-neg-2:#EF8A62; --div-mid:#F0F0F0; --div-pos-2:#67A9CF; --div-pos:#2166AC;
-}
+/* Design tokens (claro + oscuro) viven en tokens.css — fuente única, cargado ANTES que este archivo. */
 *{box-sizing:border-box}
 html,body{margin:0;height:100%}
 body{font-family:var(--font-ui);color:var(--ink);background:var(--paper);line-height:1.55;
@@ -406,20 +392,7 @@ table.xg th{font-weight:600;color:var(--ink-mid);padding:1px 10px;font-size:10.5
    TEMA OSCURO — "dark dashboard", acento naranja EMISIVO (LED), superficies con VOLUMEN 3D.
    Un solo color de acento (naranja). El glow se reserva a KPIs / activos / EN VIVO.
    ========================================================================== */
-:root[data-theme="dark"]{
-  --paper:#0a0d13; --surface:#151c27; --surface-alt:#1a212c; --line:#232c3a; --line-2:#2b3547;
-  --ink:#e9eef5; --ink-mid:#8a93a5; --ink-lo:#6b7382; --mut:#8a93a5; --mut-2:#6b7382;
-  --navy:#ff6a1a; --navy2:#ff9d2f; --accent:#ff6a1a; --focus:#ff9d2f; --or:#ff9d2f;
-  --grad:linear-gradient(135deg,#12161f 0%,#0d1119 60%,#161d28 100%);
-  --sh-sm:0 1px 2px rgba(0,0,0,.5);
-  --sh:0 8px 22px rgba(0,0,0,.55),0 2px 6px rgba(0,0,0,.5);
-  --sh-lg:0 20px 44px rgba(0,0,0,.62);
-  --steel:#5b83b0;
-  --card-grad:linear-gradient(180deg,#1a212c 0%,#11161f 100%);
-  --card-3d:inset 0 1px 0 rgba(255,255,255,.06),inset 0 -18px 30px rgba(0,0,0,.28),0 18px 34px -12px rgba(0,0,0,.70),0 6px 12px -6px rgba(0,0,0,.55);
-  --led:0 0 6px rgba(255,150,40,.85),0 0 16px rgba(255,106,26,.55),0 0 30px rgba(255,106,26,.30);
-  --halo:0 0 10px 1px rgba(255,122,30,.55),0 0 22px 3px rgba(255,106,26,.28);
-}
+/* Tokens del modo oscuro (LED naranja) viven en tokens.css. Aquí solo los componentes que los usan. */
 /* fondo página: azul-carbón + resplandor radial naranja arriba-derecha */
 :root[data-theme="dark"] body{ background:radial-gradient(720px 420px at 88% -10%,rgba(255,106,26,.15),transparent 60%),var(--paper); color:var(--ink); }
 :root[data-theme="dark"] .leaflet-container{ background:#0a0d13; }
