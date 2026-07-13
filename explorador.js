@@ -1,5 +1,5 @@
 // Explorador territorial electoral — workbench: nivel → unidad → módulos. Elección elegida DENTRO de cada módulo.
-const V='66';
+const V='68';
 // ---- tema claro/oscuro ----
 try{ if(localStorage.getItem('elec_theme')==='dark') document.documentElement.setAttribute('data-theme','dark'); }catch(e){}
 function isDark(){ return document.documentElement.getAttribute('data-theme')==='dark'; }
@@ -15,18 +15,27 @@ function setTheme(dark){
   try{ if(map&&tab==='T'&&unitId&&typeof renderT==='function') renderT(); }catch(e){}
 }
 document.addEventListener('DOMContentLoaded',()=>{ const b=document.getElementById('themeBtn');
-  if(b){ b.textContent=isDark()?'☀':'☾'; b.onclick=()=>setTheme(!isDark()); } });
+  if(b){ b.textContent=isDark()?'☀':'☾'; b.onclick=()=>setTheme(!isDark()); }
+  const cb=document.getElementById('cbBtn'); if(cb){ cb.setAttribute('aria-pressed',CBMODE?'true':'false'); cb.classList.toggle('on',CBMODE); cb.onclick=()=>setCB(!CBMODE); } });
 const LEVELS=[{k:'nacional',lbl:'Nacional'},{k:'region',lbl:'Región'},{k:'distrito',lbl:'Distrito'},
   {k:'circ_senatorial',lbl:'Circ. sen.'},{k:'metro',lbl:'Área metro'},{k:'comuna',lbl:'Comuna'}];
 const REG_ORDER=[15,1,2,3,4,5,13,6,7,16,8,9,14,10,11,12];
-// Escala por sector político (convención chilena: izquierda=rojos, derecha=azules) — paleta de Rodrigo mapeada a bloques
-const BLOQCOL={'Izquierda':'#C62828',        // rojo carmesí (PC)
-  'Centro-izquierda':'#F48FB1',              // rosado (PS/PPD, Socialismo Democrático)
-  'Centro':'#AB47BC',                        // morado (DC/Demócratas/Amarillos)
-  'Populista/Otro':'#FFB300',                // ámbar (PDG/populismos — rompe la escala)
-  'Centro-derecha':'#29B6F6',                // celeste (Evópoli)
-  'Derecha':'#1565C0',                       // azul rey (RN)
-  'Derecha radical':'#4A148C'};              // índigo/purpúreo (Republicano/PSC)
+// ══ MÓDULO DE COLOR ELECTORAL (dato) — NEUTRALIDAD ══════════════════════════════
+// Los 7 bloques van a LUMINANCIA y SATURACIÓN uniformes (verificado: var(Lrel)=0.01) para que
+// NINGUNO resalte por diseño; el eje izq→der se codifica por HUE (convención: izquierda=rojo/rosa,
+// derecha=azul), no por brillo. El color NUNCA es el único canal: siempre hay etiqueta de valor
+// (panel lateral, popup, torta) + leyenda con nombre. Paleta DALTÓNICA opcional (toggle #cbBtn):
+// rampa divergente ordenada por el eje, separada por luminancia → distinguible en deuter/protanopía.
+const BLOQ_NEUTRAL={'Izquierda':'#DB8076','Centro-izquierda':'#DC7AAE','Centro':'#C87ADC',
+  'Populista/Otro':'#B1972F','Centro-derecha':'#2FA9B1','Derecha':'#8297DE','Derecha radical':'#AA8AE0'};
+const BLOQ_CB={'Izquierda':'#9E1B32','Centro-izquierda':'#E17B4A','Centro':'#E8C39E',
+  'Populista/Otro':'#726100','Centro-derecha':'#8FBFDD','Derecha':'#3B7CB5','Derecha radical':'#1A4E86'};
+let CBMODE=(typeof localStorage!=='undefined' && localStorage.getItem('elec_cb')==='1');
+let BLOQCOL=Object.assign({}, CBMODE?BLOQ_CB:BLOQ_NEUTRAL);
+function setCB(on){ CBMODE=on; try{localStorage.setItem('elec_cb',on?'1':'0');}catch(e){}
+  BLOQCOL=Object.assign({}, on?BLOQ_CB:BLOQ_NEUTRAL);
+  const b=document.getElementById('cbBtn'); if(b){ b.setAttribute('aria-pressed',on?'true':'false'); b.classList.toggle('on',on); }
+  try{ if(typeof renderLeg==='function') renderLeg(); if(map&&tab==='T'&&unitId&&typeof renderT==='function') renderT(); }catch(e){} }
 const OPCION_COL={'APRUEBO':'#3F8E86','A FAVOR':'#3F8E86','RECHAZO':'#C55A11','EN CONTRA':'#C55A11'};
 const SEQ_LIGHT=['#EFF3FB','#C6D9F0','#8CB3DE','#4A80C0','#16365A'];
 const SEQ_DARK=['#3a2a1c','#7a3f12','#b7600f','#e8781a','#ff9d2f'];  // rampa naranja en modo oscuro (indicadores numéricos)

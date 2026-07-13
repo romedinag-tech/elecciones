@@ -95,7 +95,7 @@ main{position:absolute;top:54px;left:298px;right:0;bottom:0;display:flex;flex-di
 #apptop .at-title .at-sub{font-family:var(--font-ui);font-size:.68rem;font-weight:500;letter-spacing:.05em;opacity:.72;text-transform:uppercase}
 #apptop .at-right{display:flex;align-items:center;gap:16px}
 #apptop .at-by{font-size:.74rem;opacity:.82} #apptop .at-by b{font-weight:700}
-#apptop #themeBtn{position:static}
+#apptop #themeBtn,#apptop #cbBtn{position:static}
 @media(max-width:820px){ #apptop .at-sub,#apptop .at-by{display:none} #side{width:230px} main{left:230px} }
 .tb-lbl{font-size:.62rem;color:var(--ink-lo);flex:none;text-transform:uppercase;letter-spacing:.6px;font-weight:800}
 /* barra de controles del módulo Territorial (elección + colorear por) */
@@ -447,10 +447,13 @@ table.xg th{font-weight:600;color:var(--ink-mid);padding:1px 10px;font-size:10.5
 :root[data-theme="dark"] #apptop .at-title .at-sub{ color:#ff9d2f; opacity:.9; text-shadow:0 0 8px rgba(255,122,30,.4); }
 :root[data-theme="dark"] #apptop .at-by b{ color:#ff9d2f; }
 /* toggle de tema */
-#themeBtn{ position:absolute; top:14px; right:14px; z-index:3; width:30px;height:30px;border-radius:9px; line-height:1;
-  border:1px solid rgba(255,255,255,.22); background:rgba(255,255,255,.12); color:#fff; cursor:pointer; font-size:15px; }
-#themeBtn:hover{ background:rgba(255,255,255,.20); }
-:root[data-theme="dark"] #themeBtn{ background:linear-gradient(180deg,#232c3a,#161d28); border-color:#3c4a5f; box-shadow:var(--halo); }
+#themeBtn,#cbBtn{ position:absolute; top:14px; right:14px; z-index:3; width:30px;height:30px;border-radius:9px; line-height:1;
+  border:1px solid rgba(255,255,255,.22); background:rgba(255,255,255,.12); color:#fff; cursor:pointer; font-size:15px;
+  display:inline-flex; align-items:center; justify-content:center; }
+#themeBtn:hover,#cbBtn:hover{ background:rgba(255,255,255,.20); }
+#cbBtn[aria-pressed="true"]{ background:#fff; color:var(--navy); border-color:#fff; }
+:root[data-theme="dark"] #themeBtn,:root[data-theme="dark"] #cbBtn{ background:linear-gradient(180deg,#232c3a,#161d28); border-color:#3c4a5f; box-shadow:var(--halo); }
+:root[data-theme="dark"] #cbBtn[aria-pressed="true"]{ background:linear-gradient(180deg,#ff8a3a,#ff6a1a); color:#0a0d13; border-color:#ff9d2f; }
 /* indicador EN VIVO con LED pulsante (solo en oscuro) */
 .live-badge{ display:none; }
 :root[data-theme="dark"] .live-badge{ display:inline-flex; align-items:center; gap:5px; font-family:var(--font-ui);
