@@ -1,7 +1,7 @@
 // Explorador territorial electoral — workbench: nivel → unidad → módulos. Elección elegida DENTRO de cada módulo.
-const V='52';
+const V='53';
 const LEVELS=[{k:'nacional',lbl:'Nacional'},{k:'region',lbl:'Región'},{k:'distrito',lbl:'Distrito'},
-  {k:'circ_senatorial',lbl:'Circ. sen.'},{k:'metro',lbl:'Z. metro'},{k:'comuna',lbl:'Comuna'}];
+  {k:'circ_senatorial',lbl:'Circ. sen.'},{k:'metro',lbl:'Área metro'},{k:'comuna',lbl:'Comuna'}];
 const REG_ORDER=[15,1,2,3,4,5,13,6,7,16,8,9,14,10,11,12];
 // Escala por sector político (convención chilena: izquierda=rojos, derecha=azules) — paleta de Rodrigo mapeada a bloques
 const BLOQCOL={'Izquierda':'#C62828',        // rojo carmesí (PC)
@@ -610,8 +610,8 @@ function mCardB(D,F,verb,dim,ai,bi){
   h+=`<div class="mth-rates">`+
      `<div class="mrate"><span class="ml">${D.A}</span><span class="mt"><i style="width:${pc(rA)}%;background:${colA}"></i></span><span class="mv">${rA.toFixed(0)}%${wA?` <span class="xg-ci">±${Math.round(wA/2)}</span>`:''}</span></div>`+
      `<div class="mrate"><span class="ml">${D.B}</span><span class="mt"><i style="width:${pc(rB)}%;background:#9aa0a6"></i></span><span class="mv">${rB.toFixed(0)}%</span></div></div>`+
-     `<div class="mth-gap" style="color:${gap>=0?'#B2182B':'#2166ac'}">Sesgo ${D.A.split(' ')[0]}−${D.B.split(' ')[0]}: ${gap>0?'+':''}${gap.toFixed(0)} pp</div>`+
-     `<div class="mth-mrow">IC90: ${D.A.split(' ')[0]} [${loA}, ${hiA}] · ${D.B.split(' ')[0]} [${loB}, ${hiB}]</div>`;
+     `<div class="mth-gap" style="color:${gap>=0?'#B2182B':'#2166ac'}">Sesgo ${D.A.split(' ')[0]}−${D.B.split(' ')[0]}: ${gap>0?'+':''}${gap.toFixed(0)} pp</div>`;
+  if(loA!=null) h+=`<div class="mth-mrow">IC90: ${D.A.split(' ')[0]} [${loA}, ${hiA}] · ${D.B.split(' ')[0]} [${loB}, ${hiB}]</div>`;
   if(wide) h+=`<div class="mth-conv no">IC ancho → poca certeza en este grupo</div>`;
   return h+`</div>`; }
 function demoCard(D,ms,s){ const F=unitFrac(ms,D.frac);
@@ -674,7 +674,28 @@ function crossBayes(){ const e=elecSel; if(!CROSSIDX[e]) return null;
   if(level==='comuna') return (D.comuna[String(unitId)]||{})[key]||null;
   if(level==='region'){ const rid=unitReg(); return rid==null?null:((D.region||{})[String(rid)]||{})[key]||null; }
   if(level==='nacional') return (D.nacional||{})[key]||null;
-  return null; }  // distrito/circ/metro → sin precómputo (cae al aditivo)
+  const cuts=unitCuts(); if(cuts&&cuts.size) return crossBayesAgg(cuts,key,D);  // metro/distrito/circ → agrega posteriores comunales
+  return null; }
+// pesos por grupo por comuna desde el microdato de mesa (marginales exactas; celdas del cruce por producto)
+function comunaWeights(cuts){ const W={}; const M=MESA[elecSel]||[];
+  for(const m of M){ if(!m.t||(cuts&&!cuts.has(m.c))) continue; const o=W[m.c]||(W[m.c]={t:0,muj:0,jov:0,ext:0});
+    o.t+=m.t; o.muj+=m.muj||0; o.jov+=(m.ed&&m.ed[0])||0; o.ext+=m.ext||0; } return W; }
+// agrega las posteriores COMUNALES (media+IC) a un alcance multi-comuna (metro/distrito/circ), ponderando por votantes del grupo
+function crossBayesAgg(cuts,key,D){ const W=comunaWeights(cuts); if(!Object.keys(W).length) return null;
+  const Z=1.645; const dims=['cells','sexo','edad','nac'];
+  const gw=o=>({cells:[o.muj*o.jov/o.t,(o.t-o.muj)*o.jov/o.t,o.muj*(o.t-o.jov)/o.t,(o.t-o.muj)*(o.t-o.jov)/o.t],
+    sexo:[o.muj,o.t-o.muj], edad:[o.jov,o.t-o.jov], nac:[o.ext,o.t-o.ext]});
+  const out={}; let any=false;
+  for(const dim of dims){ const n=dim==='cells'?4:2; const sm=Array(n).fill(0),sw=Array(n).fill(0),sv=Array(n).fill(0);
+    for(const cut in W){ const cu=D.comuna[cut]; if(!cu||!cu[key]) continue; const e=cu[key][dim]; if(!e) continue;
+      const w=gw(W[cut]);
+      for(let i=0;i<n;i++){ if(e.m[i]==null||!(w[dim][i]>0)) continue; const wi=w[dim][i];
+        sm[i]+=e.m[i]*wi; sw[i]+=wi; const sd=(e.hi&&e.lo&&e.hi[i]!=null&&e.lo[i]!=null)?(e.hi[i]-e.lo[i])/(2*Z):0; sv[i]+=wi*wi*sd*sd; } }
+    out[dim]={m:[],lo:[],hi:[]};
+    for(let i=0;i<n;i++){ if(sw[i]<=0){ out[dim].m.push(null);out[dim].lo.push(null);out[dim].hi.push(null); continue; }
+      any=true; const mean=sm[i]/sw[i], sd=Math.sqrt(sv[i])/sw[i];
+      out[dim].m.push(+mean.toFixed(1)); out[dim].lo.push(+Math.max(0,mean-Z*sd).toFixed(1)); out[dim].hi.push(+Math.min(100,mean+Z*sd).toFixed(1)); } }
+  return any?out:null; }
 function hex2rgb(h){ h=h.replace('#',''); return [parseInt(h.slice(0,2),16),parseInt(h.slice(2,4),16),parseInt(h.slice(4,6),16)]; }
 function mixHex(a,b,t){ const A=hex2rgb(a),Bc=hex2rgb(b); return '#'+A.map((x,i)=>Math.round(x+(Bc[i]-x)*t).toString(16).padStart(2,'0')).join(''); }
 function desatCol(v,width){ const k=Math.max(0,Math.min(1,(width||0)/50)); return mixHex(heatCol(v),'#e9e9e9',0.85*k); }  // IC ancho → gris → poca certeza
