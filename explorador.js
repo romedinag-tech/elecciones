@@ -1,5 +1,5 @@
 // Explorador territorial electoral — workbench: nivel → unidad → módulos. Elección elegida DENTRO de cada módulo.
-const V='63';
+const V='64';
 // ---- tema claro/oscuro ----
 try{ if(localStorage.getItem('elec_theme')==='dark') document.documentElement.setAttribute('data-theme','dark'); }catch(e){}
 function isDark(){ return document.documentElement.getAttribute('data-theme')==='dark'; }
@@ -514,9 +514,11 @@ function renderT(){
     seqRange={lo:pctl(vals,.05),hi:pctl(vals,.95)}; }
   const barsMode = chartType==='barras' && barsApplicable() && feats.length<=700;
   const w0=geo==='local'?.7:geo==='comuna'?.6:.8;
+  const hasData=f=>data[String(f.properties[idp])]!=null;  // recinto/unidad sin datos en ESTA elección → no se pinta (evita "huecos grises" de recintos no activos ese año)
   layer=L.geoJSON({type:'FeatureCollection',features:feats},{ renderer:canvas,
-    style:f=>({color:'#fff',weight:w0,fillColor:barsMode?'#eef1f5':colorFeat(data[String(f.properties[idp])],f),fillOpacity:barsMode?.5:.82}),
-    onEachFeature:(f,l)=>{ l.bindPopup(popupSub(f,geo,idp,data));
+    style:f=>{ const h=hasData(f); return {color:'#fff',weight:h?w0:0,opacity:h?1:0,fillColor:barsMode?'#eef1f5':colorFeat(data[String(f.properties[idp])],f),fillOpacity:h?(barsMode?.5:.82):0}; },
+    onEachFeature:(f,l)=>{ if(!hasData(f)) return;  // sin datos: no interactúa (no popup ni hover sobre espacio vacío)
+      l.bindPopup(popupSub(f,geo,idp,data));
       l.on('mouseover',()=>l.setStyle({weight:2})); l.on('mouseout',()=>l.setStyle({weight:w0})); }
   }).addTo(map);
   drawClimits();  // límites comunales sobre el relleno
@@ -525,7 +527,7 @@ function renderT(){
   const fk=level+'|'+unitId;  // mantener vista: solo re-encuadrar al cambiar de UNIDAD (no indicador, granularidad ni elección)
   // Nacional NO auto-encuadra (deja la vista en la cuenca de Santiago); región/comuna sí se encuadran a su unidad
   if(fk!==mapFitKey){ if(level!=='nacional'){ try{ map.fitBounds(layer.getBounds(),{padding:[22,22],maxZoom:geo==='local'?14:11}); }catch(e){} } mapFitKey=fk; }
-  renderResumen(geo,feats.length); renderLeg(); renderTraspCtl(); renderElimCtl(); renderRight(geo,feats,idp,data);
+  renderResumen(geo,feats.filter(hasData).length); renderLeg(); renderTraspCtl(); renderElimCtl(); renderRight(geo,feats,idp,data);
 }
 let barLayer=null;
 function barsApplicable(){ return ['part','nulos','margen'].includes(colorby)||colorby.startsWith('cand:'); }
