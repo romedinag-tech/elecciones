@@ -1,5 +1,5 @@
 // Explorador territorial electoral — workbench: nivel → unidad → módulos. Elección elegida DENTRO de cada módulo.
-const V='51';
+const V='52';
 const LEVELS=[{k:'nacional',lbl:'Nacional'},{k:'region',lbl:'Región'},{k:'distrito',lbl:'Distrito'},
   {k:'circ_senatorial',lbl:'Circ. sen.'},{k:'metro',lbl:'Z. metro'},{k:'comuna',lbl:'Comuna'}];
 const REG_ORDER=[15,1,2,3,4,5,13,6,7,16,8,9,14,10,11,12];
@@ -697,9 +697,9 @@ function crossHTML(ms,s){
   // 1) posterior bayesiano espacial (precomputado) si existe para esta elección/unidad
   const by=crossBayes();
   if(by==='loading') return '<div class="sz-hint">Cargando estimación bayesiana…</div>';
-  if(by) return crossGridB(`${verb} por género × edad — <b>estimación bayesiana</b>`,
-    {'Mujeres':[cellObj(by,0),cellObj(by,2)],'Hombres':[cellObj(by,1),cellObj(by,3)]},
-    '<b>Inferencia ecológica bayesiana espacial</b> (NUTS + prior de vecindad ICAR): reconcilia con el % real y propaga incertidumbre. Celda <b>desaturada</b> = intervalo de credibilidad ancho (poca certeza); <b>±N</b> = medio ancho del IC90.');
+  if(by){ const bc=by.cells||by; return crossGridB(`${verb} por género × edad — <b>estimación bayesiana</b>`,
+    {'Mujeres':[cellObj(bc,0),cellObj(bc,2)],'Hombres':[cellObj(bc,1),cellObj(bc,3)]},
+    '<b>Inferencia ecológica bayesiana espacial</b> (NUTS + prior de vecindad ICAR): reconcilia con el % real y propaga incertidumbre. Celda <b>desaturada</b> = intervalo de credibilidad ancho (poca certeza); <b>±N</b> = medio ancho del IC90.'); }
   // 2) fallback: aditivo-logit en vivo (elecciones sin precómputo, o niveles distrito/metro)
   const b=addCross(ms); if(!b) return '<div class="sz-hint">Pocas mesas para estimar.</div>';
   return crossGrid(`${verb} por género × edad — <b>tendencia estimada</b>`,
