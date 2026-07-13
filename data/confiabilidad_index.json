@@ -1,0 +1,37 @@
+{
+"2025-11_presidencial_1v": {
+"label": "2025-11_presidencial_1v",
+"n": 2886,
+"r0": 1.023
+},
+"2025-12_presidencial_2v": {
+"label": "2025-12_presidencial_2v",
+"n": 2886,
+"r0": 1.023
+},
+"2024-10_gobernadores_1v": {
+"label": "2024-10_gobernadores_1v",
+"n": 2619,
+"r0": 1.055
+},
+"2024-11_gobernadores_2v": {
+"label": "2024-11_gobernadores_2v",
+"n": 2076,
+"r0": 1.034
+},
+"2023-12_plebiscito": {
+"label": "2023-12_plebiscito",
+"n": 2443,
+"r0": 1.094
+},
+"2021-11_presidencial_1v": {
+"label": "2021-11_presidencial_1v",
+"n": 1945,
+"r0": 1.2
+},
+"2021-12_presidencial_2v": {
+"label": "2021-12_presidencial_2v",
+"n": 1945,
+"r0": 1.2
+}
+}

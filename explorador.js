@@ -1,5 +1,5 @@
 // Explorador territorial electoral — workbench: nivel → unidad → módulos. Elección elegida DENTRO de cada módulo.
-const V='47';
+const V='48';
 const LEVELS=[{k:'nacional',lbl:'Nacional'},{k:'region',lbl:'Región'},{k:'distrito',lbl:'Distrito'},
   {k:'circ_senatorial',lbl:'Circ. sen.'},{k:'metro',lbl:'Z. metro'},{k:'comuna',lbl:'Comuna'}];
 const REG_ORDER=[15,1,2,3,4,5,13,6,7,16,8,9,14,10,11,12];
@@ -16,6 +16,18 @@ const SEQ=['#EFF3FB','#C6D9F0','#8CB3DE','#4A80C0','#16365A'];
 const REF_LBL='Presidencial 1ª v. 2025';
 
 let CAT={}, KPI={}, GEOCOM=null, GEOCOMP=null, AREAS=null, TIDX={}, CUTMAP={}, REPR={};
+let CONFIDX={}; const CONF={};  // confiabilidad geográfica: índice (elecciones disponibles) + cache por elección
+// rampa de confiabilidad 0-100: rojo(distorsión)→ámbar→verde(fiable). Distinta de la paleta política.
+const CONFRAMP=['#c0392b','#e67e22','#f1c40f','#7fb800','#2e7d32'];
+function confCol(v){ if(v==null) return '#e5e5e5'; const t=Math.max(0,Math.min(1,v/100)); return CONFRAMP[Math.min(4,Math.floor(t*5))]; }
+function ensureConf(e){ if(CONF[e]!==undefined) return Promise.resolve();
+  return fetch('data/confiabilidad/'+e+'.json?v='+V).then(r=>r.ok?r.json():null).then(d=>{CONF[e]=d;}).catch(()=>{CONF[e]=null;}); }
+function confRec(f){ const C=CONF[elecSel]; if(!C) return null; const g=effGran();
+  if(g==='comuna'){ return C.comuna[String(f.properties.cut)]||null; }
+  if(g==='distrito'||g==='region'){ const key=g==='distrito'?'dist':'reg', id=g==='distrito'?f.properties.distrito_num:f.properties.nro_region;
+    let sw=0,sc=0; for(const cut in C.comuna){ const cm=CUTMAP[cut]; if(!cm||cm[key]!=id) continue; const o=C.comuna[cut]; sw++; sc+=o.conf; } return sw?{conf:Math.round(10*sc/sw)/10,agg:sw}:null; }
+  const rec=f.properties.codigo_rec; return rec!=null?(C.local[String(rec)]||null):null; }  // polígono/manzana: por codigo_rec (manzana hereda del local)
+function confVal(f){ const o=confRec(f); return o?o.conf:null; }
 let level='nacional', unitId=null, tab='C', elecSel=null, colorby='winner', granul='poligono', chartType='coropleta';
 let mapFitKey=null; const GEOMS={}; let climitsLayer=null;
 let TERR=null; const TERRCACHE={};
@@ -29,8 +41,9 @@ Promise.all([
   fetch('data/comunas_pobladas.geojson?v='+V).then(r=>r.json()).catch(()=>null),  // footprint comunal para el render
   fetch('data/territorial_index.json?v='+V).then(r=>r.json()),
   fetch('data/representantes.json?v='+V).then(r=>r.json()).catch(()=>({})),
-]).then(([cat,kpi,gcom,areas,gcomp,tidx,repr])=>{
-  CAT=cat; KPI=kpi; GEOCOM=gcom; AREAS=areas; GEOCOMP=gcomp||gcom; TIDX=tidx; REPR=repr;
+  fetch('data/confiabilidad_index.json?v='+V).then(r=>r.json()).catch(()=>({})),
+]).then(([cat,kpi,gcom,areas,gcomp,tidx,repr,confidx])=>{
+  CAT=cat; KPI=kpi; GEOCOM=gcom; AREAS=areas; GEOCOMP=gcomp||gcom; TIDX=tidx; REPR=repr; CONFIDX=confidx||{};
   Object.entries(KPI.comuna).forEach(([cut,o])=>CUTMAP[cut]={reg:o.reg,dist:o.dist,circ:o.circ,metro:o.metro,nombre:o.nombre});
   elecSel=defaultElec();
   buildLevels(); buildMenu(); selectUnit('CL');
@@ -212,9 +225,10 @@ function openElecPanel(){ const p=document.getElementById('elecpanel');
 function indicList(){ const L=[{k:'winner',lbl:'Ganador'},{k:'part',lbl:'Participación'},{k:'cand',lbl:'Candidato'},{k:'nulos',lbl:'Blancos+nulos'},{k:'margen',lbl:'Competitividad'}];
   // Swing y Voto cruzado MOVIDOS a Análisis tendencial (spec 2026-07-12). 'consist' retirado antes.
   if(hasRounds(elecSel)) L.push({k:'traspaso',lbl:'Traspaso de votos'});
+  if(CONFIDX[elecSel]) L.push({k:'conf',lbl:'Confiabilidad geog.'});  // padrón vs residentes censales (solo elecciones cercanas al Censo 2024)
   L.push({k:'vdc',lbl:'Voto duro/coalición',soon:1});  // llega desde Tendencial → placeholder deshabilitado
   return L; }
-function validColorby(){ const s=new Set(['winner','part','nulos','margen']); if(hasRounds(elecSel))s.add('traspaso'); return s; }
+function validColorby(){ const s=new Set(['winner','part','nulos','margen']); if(hasRounds(elecSel))s.add('traspaso'); if(CONFIDX[elecSel])s.add('conf'); return s; }
 function buildIndics(){ const box=document.getElementById('indics'); box.innerHTML='';
   if(!(colorby.startsWith('cand:')||validColorby().has(colorby))) colorby='winner';
   indicList().forEach(I=>{ const b=document.createElement('button'); b.className='ind-btn'+(I.soon?' soon':''); b.textContent=I.lbl+(I.soon?' ·':'');
@@ -314,7 +328,8 @@ function pctl(a,p){ if(!a.length) return null; const s=[...a].sort((x,y)=>x-y); 
 function seqCol(v){ if(v==null) return '#e5e5e5'; const r=seqRange; if(!r||r.hi===r.lo) return SEQ[2];
   const t=Math.max(0,Math.min(1,(v-r.lo)/(r.hi-r.lo))); return SEQ[Math.min(4,Math.floor(t*5))]; }
 function idOf(f){ return f.properties.codigo_rec!=null?f.properties.codigo_rec:f.properties.cut; }
-function colorFeat(u,f){ if(effGran()==='manzana_est'){ const v=MANZIMP[f.properties.manzent]; return v==null?'#e5e5e5':seqCol(v); }
+function colorFeat(u,f){ if(colorby==='conf') return confCol(confVal(f));
+  if(effGran()==='manzana_est'){ const v=MANZIMP[f.properties.manzent]; return v==null?'#e5e5e5':seqCol(v); }
   if(colorby==='consist') return consistCol(CONSIST[String(idOf(f))]);
   if(colorby==='swing'||colorby==='split') return divCol(DIVMAP[+f.properties.cut]);
   if(colorby==='winner'||colorby==='traspaso'){ const w=winnerOf(u); return w?candCol(w.i):'#e5e5e5'; } return seqCol(metricVal(u)); }
@@ -367,12 +382,13 @@ function renderT(){
     computeManzImput(terrSub().feats); }
   if((colorby==='swing'||colorby==='split') && !TENDCACHE['comuna']){ ensureTendComuna().then(renderT); return; }
   if(colorby==='consist'){ const r=rounds(elecSel); if(!TERRCACHE[r.v1]||!TERRCACHE[r.v2]){ Promise.all([fetchTerr(r.v1),fetchTerr(r.v2)]).then(renderT); return; } }
+  if(colorby==='conf'&&CONF[elecSel]===undefined){ document.getElementById('resumen').innerHTML='Cargando confiabilidad…'; ensureConf(elecSel).then(renderT); return; }
   if(layer){ map.removeLayer(layer); layer=null; }
   const {geo,idp,data,feats}=terrSub();
   if(!feats.length){ document.getElementById('resumen').innerHTML='Sin sub-unidades para mapear.'; return; }
   if(colorby==='swing'||colorby==='split') computeDivMap(feats);
   else if(colorby==='consist') computeConsist(feats,geo);
-  else if(colorby!=='winner'&&colorby!=='traspaso'&&effGran()!=='manzana_est'){ const vals=feats.map(f=>metricVal(data[String(f.properties[idp])])).filter(v=>v!=null);
+  else if(colorby!=='winner'&&colorby!=='traspaso'&&colorby!=='conf'&&effGran()!=='manzana_est'){ const vals=feats.map(f=>metricVal(data[String(f.properties[idp])])).filter(v=>v!=null);
     seqRange={lo:pctl(vals,.05),hi:pctl(vals,.95)}; }
   const barsMode = chartType==='barras' && barsApplicable() && feats.length<=700;
   const w0=geo==='local'?.7:geo==='comuna'?.6:.8;
@@ -720,7 +736,14 @@ function popupSub(f,geo,idp,data){ const u=data[String(f.properties[idp])]; cons
   if(colorby==='swing'||colorby==='split'){ const dv=DIVMAP[+f.properties.cut];
     h+=(dv==null?'<span style="color:#888">sin comparable</span>':`${colorby==='swing'?'Swing':'Voto cruzado'}: <b>${dv>0?'+':''}${dv.toFixed(1)} pp</b> ${dv>0?'→ derecha':dv<0?'→ izquierda':''}<br><span style="color:#888">vs ${DIVREF?elecInfo(DIVREF).label+' '+elecInfo(DIVREF).year:'—'}</span>`)+'<br>'; }
   if(colorby==='consist'){ const cv=CONSIST[String(idOf(f))]; h+=(cv==null?'<span style="color:#888">sin comparable</span>':(cv?'<b>Mismo bloque</b> ganó 1ª y 2ª vuelta':'<b>Cambió de bloque</b> entre vueltas'))+'<br>'; }
-  if(colorby==='nulos'&&u&&u.val){ const nb=u.nb||0; h+=`Blancos + nulos: <b>${(100*nb/(u.val+nb)).toFixed(1)}%</b> (${fmtN(nb)} votos)<br>`; }
+  if(colorby==='conf'){ const o=confRec(f);
+    if(!o) return h+'<span style="color:#888">sin dato de confiabilidad</span>';
+    h+=`Confiabilidad geográfica: <b>${o.conf}/100</b><br>`;
+    if(o.agg){ h+=`<span style="color:#888">promedio de ${o.agg} comunas</span>`; return h; }
+    h+=`<span style="color:#888">Arraigo padrón/residentes: <b>${o.vol==null?'—':o.vol}</b>`+
+       `${o.r!=null?` (×${o.r} vs mediana país)`:''}<br>`+
+       `Composición (extranjeros): <b>${o.comp}</b> · brecha ${o.gap_ext}pp<br>`+
+       `${o.ins!=null?fmtN(o.ins)+' inscritos · ':''}${fmtN(o.pobr)} residentes censados</span>`; return h; }
   if(!u||!w) return h+(colorby==='swing'||colorby==='split'||colorby==='consist'?'':'sin resultado');
   const top=Object.entries(u.v).sort((a,b)=>b[1]-a[1]).slice(0,3)
     .map(([i,vs])=>`${cap(TERR.candidatos[+i].nombre)}: <b>${(100*vs/u.val).toFixed(1)}%</b> · ${fmtN(vs)} votos`).join('<br>');
@@ -743,12 +766,16 @@ function colLabel(){ if(colorby==='winner') return 'ganador'; if(colorby==='part
   if(colorby==='swing') return 'swing vs '+(DIVREF?elecInfo(DIVREF).year:'anterior');
   if(colorby==='split') return 'voto cruzado vs '+(DIVREF?cap(elecInfo(DIVREF).label):'—');
   if(colorby==='traspaso') return 'ganador (fondo) — traspaso en el panel';
+  if(colorby==='conf') return 'confiabilidad geográfica (padrón vs residentes)';
   return '% '+cap(TERR.candidatos[+colorby.slice(5)].nombre); }
 function renderResumen(geo,n){ const o=(KPI[level]||{})[unitId]||{};
   let extra='';
   if(colorby==='consist'&&CONSIST_PCT!=null){ const r=rounds(elecSel);
     extra=`<div class="r-hint"><b>${CONSIST_PCT}%</b> de ${granName(geo)} mantuvieron el bloque ganador entre 1ª y 2ª vuelta; el resto cambió. Compara ${elecInfo(r.v1).label} y ${elecInfo(r.v2).label} ${elecInfo(r.v2).year}.</div>`; }
+  else if(colorby==='conf'){ extra=`<div class="r-hint">Compara la composición de <b>quienes votan</b> (padrón + descripción de mesa) con la de <b>quienes viven</b> (Censo 2024, manzanas del polígono). <b style="color:${CONFRAMP[4]}">Verde</b> = coinciden → el análisis geográfico es fiable; <b style="color:${CONFRAMP[0]}">rojo</b> = el domicilio del padrón está desactualizado → interpreta con cautela. Clic en un polígono para el desglose.</div>`; }
   else extra=`<div class="r-hint">Máxima desagregación disponible para esta elección. Clic en una unidad para el detalle.</div>`;
+  if(colorby!=='conf'&&TERR.meta.has_local&&AREAS&&level!=='comuna')
+    extra+=`<div class="r-hint" style="color:var(--ac,#2a6)"><b>Entra a una comuna</b> (clic en el mapa o menú Comuna) para desagregar a <b>Manzana</b> (observado y estimativa).</div>`;
   if(chartType==='barras'){ if(!barsApplicable()) extra+=`<div class="r-hint" style="color:var(--or)">Las barras verticales aplican a indicadores numéricos (participación, % candidato, blancos+nulos, margen). El indicador actual es categórico → se muestra coropleta.</div>`;
     else if(n>700) extra+=`<div class="r-hint" style="color:var(--or)">Demasiadas sub-unidades para barras; usa granularidad <b>Comuna</b>/<b>Distrito</b>.</div>`; }
   document.getElementById('resumen').innerHTML=`<div class="r-com">${cap(o.nombre||'')}</div>`+
@@ -762,6 +789,10 @@ function renderLeg(){ const el=document.getElementById('leg2');
       `<span class="lg"><i style="background:#2166ac"></i>← izq. −${m.toFixed(0)}</span>`+
       `<span class="lg"><i style="background:#f7f7f7;border:1px solid #ccc"></i>0</span>`+
       `<span class="lg"><i style="background:#b2182b"></i>der. +${m.toFixed(0)} →</span>`; return; }
+  if(colorby==='conf'){ el.innerHTML=`<span class="lg" style="width:100%;font-weight:700;color:#333">Confiabilidad geográfica</span>`+
+      `<span class="lg"><i style="background:${CONFRAMP[0]}"></i>0 · distorsión</span>`+
+      CONFRAMP.slice(1,4).map(c=>`<span class="lg"><i style="background:${c}"></i></span>`).join('')+
+      `<span class="lg"><i style="background:${CONFRAMP[4]}"></i>100 · fiable</span>`; return; }
   if(colorby==='winner'||colorby==='traspaso'){ const used={}; Object.keys(TERR.local||TERR.comuna).length;
     // leyenda por bloque + opciones presentes (el mapa muestra el ganador de fondo; el traspaso va en el panel)
     el.innerHTML=Object.entries(BLOQCOL).map(([b,c])=>`<span class="lg"><i style="background:${c}"></i>${b}</span>`).join('')
