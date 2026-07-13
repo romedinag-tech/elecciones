@@ -1,5 +1,5 @@
 // Explorador territorial electoral — workbench: nivel → unidad → módulos. Elección elegida DENTRO de cada módulo.
-const V='65';
+const V='66';
 // ---- tema claro/oscuro ----
 try{ if(localStorage.getItem('elec_theme')==='dark') document.documentElement.setAttribute('data-theme','dark'); }catch(e){}
 function isDark(){ return document.documentElement.getAttribute('data-theme')==='dark'; }
@@ -313,8 +313,14 @@ function computeManzImput(feats){ MANZIMP={};
     imp=Math.max(0,Math.min(100,imp)); MANZIMP[p.manzent]=imp; vals.push(imp); }
   seqRange={lo:pctl(vals,.05),hi:pctl(vals,.95)};
 }
+// Validez del nivel RECINTO: la reforma de domicilio electoral (recinto ≈ población cercana) rige solo desde la
+// presidencial de 2021 (nov-2021, Boric 1ª/2ª v.). Antes, el elector podía votar lejos de su casa → un recinto NO
+// representa a su entorno: la inferencia territorial por polígono/manzana es inválida. Comparación de strings segura
+// porque el prefijo es YYYY-MM de ancho fijo. La geometría histórica válida está pedida por transparencia al SERVEL.
+function localValid(e){ return !!e && e>='2021-11'; }
+function hasLocal(){ return !!(TERR&&TERR.meta&&TERR.meta.has_local&&AREAS&&localValid(elecSel)); }
 function buildGranul(){ const s=document.getElementById('granul'); const opts=[];
-  if(TERR.meta.has_local&&AREAS){ opts.push(['poligono','Polígono (local)']);
+  if(hasLocal()){ opts.push(['poligono','Polígono (local)']);
     if(level==='comuna'){ opts.push(['manzana','Manzana (observado)']);   // modo B: hereda el valor del polígono
       opts.push(['manzana_est','Manzana (estimativa)']); } }              // modo C: voto imputado por composición censal
   opts.push(['comuna','Comuna']);
@@ -327,7 +333,7 @@ function buildGranul(){ const s=document.getElementById('granul'); const opts=[]
 function clampGran(g){
   if(g==='region' && level!=='nacional') g='comuna';
   if(g==='distrito' && !(level==='nacional'||level==='region')) g='comuna';
-  if((g==='comuna'||g==='distrito'||g==='region') && level==='comuna') g=(TERR&&TERR.meta.has_local&&AREAS)?'poligono':'comuna';
+  if((g==='comuna'||g==='distrito'||g==='region') && level==='comuna') g=hasLocal()?'poligono':'comuna';
   return g; }
 
 function unitCuts(){ if(level==='comuna') return new Set([+unitId]); if(level==='nacional') return null;
@@ -344,9 +350,9 @@ function aggToLevel(kind){ const cuts=unitCuts(); const out={}; const key=kind==
 function effGran(){ let g=clampGran(granul);   // clamp por alcance (render siempre coherente aunque el dropdown quede stale)
   if(colorby==='swing'||colorby==='split') g='comuna';
   if(colorby==='consist'&&(g==='distrito'||g==='region')) g='comuna';
-  if((g==='manzana'||g==='manzana_est')&&(level!=='comuna'||!(TERR.meta.has_local&&AREAS))) g='poligono';  // manzana solo a nivel comuna
+  if((g==='manzana'||g==='manzana_est')&&(level!=='comuna'||!hasLocal())) g='poligono';  // manzana solo a nivel comuna
   if(g==='manzana_est'&&!(colorby==='part'||colorby==='nulos'||colorby.startsWith('cand:'))) g='manzana';  // imputación solo para indicadores numéricos con estimación
-  if(g==='poligono'&&!(TERR.meta.has_local&&AREAS)) g='comuna'; return g; }
+  if(g==='poligono'&&!hasLocal()) g='comuna'; return g; }
 function granName(geo){ return geo==='manzana'?'manzanas':geo==='local'?'locales':geo==='distrito'?'distritos':geo==='region'?'regiones':'comunas'; }
 function terrSub(){ const cuts=unitCuts(); const g=effGran();
   if(g==='manzana'||g==='manzana_est'){ const mz=MANZ[unitId]; return {geo:'manzana', idp:'codigo_rec', data:TERR.local, feats:mz?mz.features:[]}; }
@@ -1001,8 +1007,10 @@ function renderResumen(geo,n){ const o=(KPI[level]||{})[unitId]||{};
     extra=`<div class="r-hint"><b>${CONSIST_PCT}%</b> de ${granName(geo)} mantuvieron el bloque ganador entre 1ª y 2ª vuelta; el resto cambió. Compara ${elecInfo(r.v1).label} y ${elecInfo(r.v2).label} ${elecInfo(r.v2).year}.</div>`; }
   else if(colorby==='conf'){ extra=`<div class="r-hint">Compara la composición de <b>quienes votan</b> (padrón + descripción de mesa) con la de <b>quienes viven</b> (Censo 2024, manzanas del polígono). <b style="color:${CONFRAMP[4]}">Verde</b> = coinciden → el análisis geográfico es fiable; <b style="color:${CONFRAMP[0]}">rojo</b> = el domicilio del padrón está desactualizado → interpreta con cautela. Clic en un polígono para el desglose.</div>`; }
   else extra=`<div class="r-hint">Máxima desagregación disponible para esta elección. Clic en una unidad para el detalle.</div>`;
-  if(colorby!=='conf'&&TERR.meta.has_local&&AREAS&&level!=='comuna')
+  if(colorby!=='conf'&&hasLocal()&&level!=='comuna')
     extra+=`<div class="r-hint" style="color:var(--ac,#2a6)"><b>Entra a una comuna</b> (clic en el mapa o menú Comuna) para desagregar a <b>Manzana</b> (observado y estimativa).</div>`;
+  if(TERR.meta.has_local&&!localValid(elecSel))
+    extra+=`<div class="r-hint" style="color:var(--or)">⚠ Las vistas por <b>recinto y manzana</b> no están disponibles para esta elección. Antes de la presidencial de nov-2021 el elector <b>no votaba necesariamente cerca de su domicilio</b>, así que el resultado de un recinto no representa a la población de su entorno (la geometría válida está pedida por transparencia al SERVEL). El análisis a nivel <b>Comuna</b> y superior sí es válido.</div>`;
   if(geo==='local'&&LOCALCOV!=null&&LOCALCOV<.97){ const pc=Math.round(LOCALCOV*100);
     extra+=`<div class="r-hint" style="color:var(--or)">⚠ Este mapa por recinto muestra el <b>${pc}%</b> del voto de la elección: el padrón de locales cambia entre años y los recintos de ${elecInfo(elecSel).year} que ya no existen no tienen polígono que dibujar. La vista <b>Comuna</b> cubre el 100%.</div>`; }
   if(chartType==='barras'){ if(!barsApplicable()) extra+=`<div class="r-hint" style="color:var(--or)">Las barras verticales aplican a indicadores numéricos (participación, % candidato, blancos+nulos, margen). El indicador actual es categórico → se muestra coropleta.</div>`;
