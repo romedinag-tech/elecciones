@@ -1,5 +1,5 @@
 // Explorador territorial electoral — workbench: nivel → unidad → módulos. Elección elegida DENTRO de cada módulo.
-const V='48';
+const V='49';
 const LEVELS=[{k:'nacional',lbl:'Nacional'},{k:'region',lbl:'Región'},{k:'distrito',lbl:'Distrito'},
   {k:'circ_senatorial',lbl:'Circ. sen.'},{k:'metro',lbl:'Z. metro'},{k:'comuna',lbl:'Comuna'}];
 const REG_ORDER=[15,1,2,3,4,5,13,6,7,16,8,9,14,10,11,12];
@@ -218,6 +218,7 @@ function openElecPanel(){ const p=document.getElementById('elecpanel');
     yr.innerHTML=`<div class="ep-y">${y}</div>`; const wrap=document.createElement('div'); wrap.className='ep-els';
     CAT[y].forEach(fam=> fam.elecciones.forEach(el=>{ const b=document.createElement('button'); b.textContent=el.label; b.title=fam.familia;
       b.className=el.id===elecSel?'on':''; b.onclick=()=>{ elecSel=el.id; colorby='winner'; p.style.display='none';
+        const _g=officeGran(elecSel); if(_g) granul=_g;   // granularidad natural del cargo (gob→región, alcalde→comuna, dip→distrito…)
         document.getElementById('elecBtn').textContent=elecInfo(elecSel).label+' · '+y;
         loadTerr(elecSel).then(()=>{ buildCandsel(); buildGranul(); buildIndics(); renderT(); }); }; wrap.appendChild(b); }));
     yr.appendChild(wrap); p.appendChild(yr); });
@@ -370,10 +371,13 @@ function drawAumentoBars(feats,geo){ if(barLayer){ map.removeLayer(barLayer); ba
     const u1=d1[id], u2=d2[id]; if(!u1||!u2) return null; const e1=u1.val+(u1.nb||0), e2=u2.val+(u2.nb||0);
     if(!e1) return null; return {f,v:100*(e2-e1)/e1}; }).filter(Boolean);
   if(!rows.length){ barLayer.addTo(map); return; } const hi=Math.max(...rows.map(x=>Math.abs(x.v)))||10;
+  const showN=rows.length<=90;  // etiqueta numérica solo si no hay demasiadas zonas
   rows.forEach(({f,v})=>{ const c=featCenter(f); if(!c) return; const hpx=Math.max(3,Math.min(46,Math.abs(v)/hi*46));
-    const col=v>=0?'#2e7d32':'#c0392b';
-    const icon=L.divIcon({className:'barmk',html:`<div class="mbar" style="height:${hpx}px;background:${col}"></div>`,iconSize:[7,hpx],iconAnchor:[3,hpx]});
-    L.marker(c,{icon,keyboard:false,interactive:false,title:(v>=0?'+':'')+v.toFixed(0)+'%'}).addTo(barLayer); });
+    const col=v>=0?'#2e7d32':'#c0392b'; const lbl=(v>=0?'+':'')+v.toFixed(0)+'%';
+    const html=showN?`<span class="mbar-n">${lbl}</span><div class="mbar" style="height:${hpx}px;background:${col}"></div>`
+                    :`<div class="mbar" style="height:${hpx}px;background:${col}"></div>`;
+    const icon=L.divIcon({className:'barmk',html,iconSize:[showN?26:7,hpx+(showN?13:0)],iconAnchor:[showN?13:3,hpx+(showN?13:0)]});
+    L.marker(c,{icon,keyboard:false,interactive:false,title:lbl}).addTo(barLayer); });
   barLayer.addTo(map); }
 // control de vistas + slider sobre el mapa (solo con indicador Traspaso)
 function renderTraspCtl(){ let c=document.getElementById('traspctl');
@@ -407,6 +411,7 @@ const DIVPAL=['#2166ac','#67a9cf','#f7f7f7','#ef8a62','#b2182b']; let DIVMAP={},
 function allElecList(){ const a=[]; for(const y in CAT) for(const f of CAT[y]) for(const e of f.elecciones) a.push(e.id); return a.sort(); }
 function suffixOf(e){ return e.substring(e.indexOf('_')+1); }
 function officeOf(e){ for(const o of ['presidencial','primarias','diputados','senadores','alcaldes','concejales','gobernadores','cores','convencion','consejo','plebiscito']) if(e.includes(o)) return o; return ''; }
+function officeGran(e){ return ({gobernadores:'region',alcaldes:'comuna',concejales:'comuna',cores:'comuna',diputados:'distrito',senadores:'region'})[officeOf(e)]||null; }  // null = deja el default (presidencial/plebiscito → polígono)
 function prevSameType(e){ const sf=suffixOf(e); const all=allElecList().filter(x=>suffixOf(x)===sf); const i=all.indexOf(e); return i>0?all[i-1]:null; }
 function partnerOf(e){ const d=e.slice(0,7); const same=allElecList().filter(x=>x!==e&&x.slice(0,7)===d);
   const pref={presidencial:['diputados','senadores'],diputados:['presidencial','senadores'],senadores:['presidencial','diputados'],
