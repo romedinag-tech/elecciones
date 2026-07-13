@@ -1,5 +1,5 @@
 // Explorador territorial electoral — workbench: nivel → unidad → módulos. Elección elegida DENTRO de cada módulo.
-const V='64';
+const V='65';
 // ---- tema claro/oscuro ----
 try{ if(localStorage.getItem('elec_theme')==='dark') document.documentElement.setAttribute('data-theme','dark'); }catch(e){}
 function isDark(){ return document.documentElement.getAttribute('data-theme')==='dark'; }
@@ -454,6 +454,7 @@ function renderTraspCtl(){ let c=document.getElementById('traspctl');
 
 // ---- consistencia 1ª/2ª vuelta (bloque ganador se repite entre rondas) ----
 let CONSIST={}, CONSIST_PCT=null;
+let LOCALCOV=null;  // cobertura de la vista de polígono: voto en recintos dibujados ÷ voto comunal (el padrón de recintos cambia por año → mapas locales viejos son parciales)
 function fetchTerr(e){ if(TERRCACHE[e]) return Promise.resolve(TERRCACHE[e]);
   return fetch('data/territorial/'+e+'.json?v='+V).then(r=>r.json()).then(d=>{TERRCACHE[e]=d; return d;}); }
 function rounds(e){ const off=officeOf(e), yr=e.slice(0,4); const all=allElecList().filter(x=>x.slice(0,4)===yr&&officeOf(x)===off);
@@ -527,6 +528,11 @@ function renderT(){
   const fk=level+'|'+unitId;  // mantener vista: solo re-encuadrar al cambiar de UNIDAD (no indicador, granularidad ni elección)
   // Nacional NO auto-encuadra (deja la vista en la cuenca de Santiago); región/comuna sí se encuadran a su unidad
   if(fk!==mapFitKey){ if(level!=='nacional'){ try{ map.fitBounds(layer.getBounds(),{padding:[22,22],maxZoom:geo==='local'?14:11}); }catch(e){} } mapFitKey=fk; }
+  LOCALCOV=null;  // cobertura del mapa local: voto en recintos dibujados ÷ voto comunal en alcance (solo aplica a vista de polígono)
+  if(geo==='local'&&TERR.comuna){ const cuts=unitCuts();
+    let ct=0; for(const c in TERR.comuna){ if(!cuts||cuts.has(+c)) ct+=(TERR.comuna[c].val||0); }
+    let lt=0; feats.forEach(f=>{ const u=data[String(f.properties[idp])]; if(u) lt+=(u.val||0); });
+    if(ct>0) LOCALCOV=lt/ct; }
   renderResumen(geo,feats.filter(hasData).length); renderLeg(); renderTraspCtl(); renderElimCtl(); renderRight(geo,feats,idp,data);
 }
 let barLayer=null;
@@ -997,6 +1003,8 @@ function renderResumen(geo,n){ const o=(KPI[level]||{})[unitId]||{};
   else extra=`<div class="r-hint">Máxima desagregación disponible para esta elección. Clic en una unidad para el detalle.</div>`;
   if(colorby!=='conf'&&TERR.meta.has_local&&AREAS&&level!=='comuna')
     extra+=`<div class="r-hint" style="color:var(--ac,#2a6)"><b>Entra a una comuna</b> (clic en el mapa o menú Comuna) para desagregar a <b>Manzana</b> (observado y estimativa).</div>`;
+  if(geo==='local'&&LOCALCOV!=null&&LOCALCOV<.97){ const pc=Math.round(LOCALCOV*100);
+    extra+=`<div class="r-hint" style="color:var(--or)">⚠ Este mapa por recinto muestra el <b>${pc}%</b> del voto de la elección: el padrón de locales cambia entre años y los recintos de ${elecInfo(elecSel).year} que ya no existen no tienen polígono que dibujar. La vista <b>Comuna</b> cubre el 100%.</div>`; }
   if(chartType==='barras'){ if(!barsApplicable()) extra+=`<div class="r-hint" style="color:var(--or)">Las barras verticales aplican a indicadores numéricos (participación, % candidato, blancos+nulos, margen). El indicador actual es categórico → se muestra coropleta.</div>`;
     else if(n>700) extra+=`<div class="r-hint" style="color:var(--or)">Demasiadas sub-unidades para barras; usa granularidad <b>Comuna</b>/<b>Distrito</b>.</div>`; }
   document.getElementById('resumen').innerHTML=`<div class="r-com">${cap(o.nombre||'')}</div>`+
