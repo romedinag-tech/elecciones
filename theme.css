@@ -223,6 +223,11 @@ table.xg th{font-weight:600;color:var(--ink-mid);padding:1px 10px;font-size:10.5
 .ts-h{font-family:var(--font-display);font-size:1rem;font-weight:700;color:var(--ink);margin-bottom:8px;line-height:1.15}
 .ts-h2{font-size:.66rem;text-transform:uppercase;letter-spacing:.5px;color:var(--navy);font-weight:800;
   border-top:1px solid var(--line);padding-top:10px;margin-bottom:8px}
+/* crédito / fuente en el pie del panel lateral (trazabilidad = parte del diseño en electoral) */
+.sb-foot{flex:none;padding:9px 14px 11px;border-top:1px solid var(--line);font-size:10.5px;color:var(--ink-lo);line-height:1.45;background:transparent}
+.sb-foot b{color:var(--ink-mid);font-weight:700}
+.sb-foot-sub{margin-top:2px;opacity:.85}
+:root[data-theme="dark"] .sb-foot b{color:#c7cfdb}
 .ts-row{display:flex;align-items:center;gap:7px;margin:3px 0;font-size:.74rem;border-radius:0 6px 6px 0}
 .ts-row.sel{background:var(--surface-alt);padding:3px 7px 3px 8px;margin-left:-8px}
 .ts-row.sel .ts-name{font-weight:700}
