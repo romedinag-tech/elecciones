@@ -9,6 +9,8 @@ body{font-family:var(--font-ui);color:var(--ink);background:var(--paper);line-he
   -webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility}
 h1,h2,h3{font-family:var(--font-display);letter-spacing:-.01em;color:var(--ink)}
 .kpi .v,table,th,td,#buscar,.pob,.mono{font-variant-numeric:tabular-nums}
+/* cifras de DATO (votos, %, participación) en mono tabular — alineación y lectura de "plataforma de datos" */
+.kbp,.ts-pct,.ts-vot,.barz-v,.tl-v,.dr-r,.sz-v,.xg-c,.ts-liV,.td-tab td,.pk-n,.sf-met{font-family:var(--font-data);font-variant-numeric:tabular-nums;letter-spacing:-.02em}
 a{color:var(--accent);text-decoration:none}
 :focus-visible{outline:2px solid var(--focus);outline-offset:2px;border-radius:4px}
 .leaflet-container{background:#eef1f4;font-family:var(--font-ui)}
@@ -221,7 +223,9 @@ table.xg th{font-weight:600;color:var(--ink-mid);padding:1px 10px;font-size:10.5
 .ts-h{font-family:var(--font-display);font-size:1rem;font-weight:700;color:var(--ink);margin-bottom:8px;line-height:1.15}
 .ts-h2{font-size:.66rem;text-transform:uppercase;letter-spacing:.5px;color:var(--navy);font-weight:800;
   border-top:1px solid var(--line);padding-top:10px;margin-bottom:8px}
-.ts-row{display:flex;align-items:center;gap:7px;margin:3px 0;font-size:.74rem}
+.ts-row{display:flex;align-items:center;gap:7px;margin:3px 0;font-size:.74rem;border-radius:0 6px 6px 0}
+.ts-row.sel{background:var(--surface-alt);padding:3px 7px 3px 8px;margin-left:-8px}
+.ts-row.sel .ts-name{font-weight:700}
 .ts-name{width:96px;flex:none;color:var(--ink-mid);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .ts-bar{flex:1;height:9px;background:var(--surface-alt);border-radius:5px;overflow:hidden}
 .ts-bar i{display:block;height:100%;border-radius:5px}

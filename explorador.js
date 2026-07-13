@@ -1,5 +1,5 @@
 // Explorador territorial electoral — workbench: nivel → unidad → módulos. Elección elegida DENTRO de cada módulo.
-const V='70';
+const V='71';
 // ---- tema claro/oscuro ----
 try{ if(localStorage.getItem('elec_theme')==='dark') document.documentElement.setAttribute('data-theme','dark'); }catch(e){}
 function isDark(){ return document.documentElement.getAttribute('data-theme')==='dark'; }
@@ -1030,8 +1030,8 @@ function renderSummary(geo,feats,idp,data){ const o=(KPI[level]||{})[unitId]||{}
   let h=`<div class="mth-pad"><div class="ts-tot"><div class="ts-h">${cap(o.nombre||'')}</div>
     <div class="mth-subt">${TERR.meta.label} ${elecInfo(elecSel).year} · <b>${fmtN(emit)}</b> votaron · ${fmtN(tot.val)} válidos</div>`;
   const ranked=Object.entries(tot.v).sort((a,b)=>b[1]-a[1]).slice(0,12);
-  h+=ranked.map(([i,vs])=>{ const c=TERR.candidatos[+i]; const pct=100*vs/tot.val;
-    return `<div class="ts-row"><span class="ts-name">${cap(c.nombre)}</span><span class="ts-bar"><i style="width:${pct}%;background:${candCol(+i)}"></i></span><span class="ts-pct">${pct.toFixed(1)}%<span class="ts-vot">${fmtN(vs)}</span></span></div>`; }).join('');
+  h+=ranked.map(([i,vs])=>{ const c=TERR.candidatos[+i]; const pct=100*vs/tot.val; const sel=colorby==='cand:'+i;
+    return `<div class="ts-row${sel?' sel':''}"${sel?` style="box-shadow:inset 3px 0 0 ${candCol(+i)}"`:''}><span class="ts-name">${cap(c.nombre)}</span><span class="ts-bar"><i style="width:${pct}%;background:${candCol(+i)}"></i></span><span class="ts-pct">${pct.toFixed(1)}%<span class="ts-vot">${fmtN(vs)}</span></span></div>`; }).join('');
   h+=`</div><div class="sz-note" style="margin-top:10px">Elige <b>Participación</b>, <b>un candidato</b> o <b>Blancos+nulos</b> para estimar los sesgos demográficos por grupo.</div></div>`;
   document.getElementById('terrside').innerHTML=h; }
 function colLabel(){ if(colorby==='winner') return 'ganador'; if(colorby==='part') return 'participación';
