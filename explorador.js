@@ -1,5 +1,5 @@
 // Explorador territorial electoral — workbench: nivel → unidad → módulos. Elección elegida DENTRO de cada módulo.
-const V='57';
+const V='58';
 // ---- tema claro/oscuro ----
 try{ if(localStorage.getItem('elec_theme')==='dark') document.documentElement.setAttribute('data-theme','dark'); }catch(e){}
 function isDark(){ return document.documentElement.getAttribute('data-theme')==='dark'; }
@@ -354,7 +354,25 @@ function terrSub(){ const cuts=unitCuts(); const g=effGran();
   if(g==='comuna') return {geo:'comuna', idp:'cut', data:TERR.comuna, feats:GEOCOMP.features.filter(f=>!cuts||cuts.has(+f.properties.cut))};
   if(g==='distrito'){ const data=aggToLevel('dist'); return {geo:'distrito', idp:'distrito_num', data, feats:(GEOMS.distrito?GEOMS.distrito.features:[]).filter(f=>data[f.properties.distrito_num]!=null)}; }
   const data=aggToLevel('reg'); return {geo:'region', idp:'nro_region', data, feats:(GEOMS.region?GEOMS.region.features:[]).filter(f=>data[f.properties.nro_region]!=null)}; }
-function winnerOf(u){ if(!u||!u.val) return null; let bi=null,bv=-1; for(const i in u.v) if(u.v[i]>bv){bv=u.v[i];bi=+i;} return bi==null?null:{i:bi,pct:100*bv/u.val}; }
+function winnerOf(u){ if(!u||!u.val) return null; let bi=null,bv=-1; for(const i in u.v){ if(ELIM.has(+i)) continue; if(u.v[i]>bv){bv=u.v[i];bi=+i;} } return bi==null?null:{i:bi,pct:100*bv/u.val}; }
+// ===== vista Ganador con ELIMINACIÓN gradual (instant-runoff visual) =====
+let elimN=0; let ELIM=new Set();
+function elimOrder(){ const tot=unitTotals(); return Object.entries(tot.v).map(([i,v])=>({i:+i,v:+v})).sort((a,b)=>b.v-a.v).map(x=>x.i); }  // candidatos por votos del ámbito
+function computeElim(){ ELIM=new Set(); if(colorby!=='winner'){ elimN=0; return; } const ord=elimOrder(); const max=Math.max(0,ord.length-1);
+  if(elimN>max) elimN=max; for(let k=0;k<elimN;k++) ELIM.add(ord[k]); }
+function renderElimCtl(){ let c=document.getElementById('elimctl'); if(!c){ c=document.createElement('div'); c.id='elimctl'; document.getElementById('mapwrap').appendChild(c); }
+  const ord = colorby==='winner'?elimOrder():[];
+  if(colorby!=='winner' || ord.length<3){ c.style.display='none'; return; }
+  c.style.display='block';
+  const names=ord.slice(0,elimN).map(i=>cap((TERR.candidatos[i]||{}).ape1||(TERR.candidatos[i]||{}).nombre||'')).join(', ');
+  const nextNm = elimN<ord.length-1?cap((TERR.candidatos[ord[elimN]]||{}).ape1||''):null;
+  c.innerHTML=`<div class="ec-row"><span class="ec-lbl">Eliminar</span>`+
+     `<button class="ec-b" data-d="-1" ${elimN<=0?'disabled':''}>−</button><span class="ec-n">${elimN}</span>`+
+     `<button class="ec-b" data-d="1" ${elimN>=ord.length-1?'disabled':''}>+</button></div>`+
+     (elimN?`<div class="ec-el"><b>Fuera:</b> ${names}<br>Cada polígono se colorea por su ganador entre los que quedan.</div>`
+           :`<div class="ec-el ec-hint">Saca al más votado (${nextNm||'—'}) y ve quién queda 2º en cada polígono.</div>`);
+  c.querySelectorAll('.ec-b').forEach(b=>b.onclick=()=>{ elimN=Math.max(0,Math.min(ord.length-1,elimN+ +b.dataset.d)); renderT(); });
+}
 function candCol(i){ const c=TERR.candidatos[i]; if(!c) return '#b9c0cb'; return c.bloque?(BLOQCOL[c.bloque]||'#b9c0cb'):(OPCION_COL[(c.nombre||'').toUpperCase()]||'#b9c0cb'); }
 function metricVal(u){ if(!u||!u.val) return null;
   if(colorby==='part') return u.part;
@@ -414,11 +432,13 @@ function drawAumentoBars(feats,geo){ if(barLayer){ map.removeLayer(barLayer); ba
     const gs=fins.map(fn=>{ if(fn.i1==null) return null; const a=u1.v[fn.i1]||0, b=u2.v[fn.i2]||0; return a>0?100*(b-a)/a:null; });
     if(gs.every(g=>g==null)) return; gs.forEach(g=>{ if(g!=null) hi=Math.max(hi,Math.abs(g)); }); rows.push({c,gs}); });
   if(!rows.length){ barLayer.addTo(map); return; }
+  const showN=rows.length<=140;  // número sobre cada barra si no hay demasiadas zonas
   rows.forEach(({c,gs})=>{ let bars='';
-    gs.forEach((g,k)=>{ if(g==null){ bars+='<span class="mb2 mb2e"></span>'; return; }
-      const hpx=Math.max(2,Math.min(42,Math.abs(g)/hi*42));
-      bars+=`<span class="mb2" style="height:${hpx}px;background:${fins[k].col}" title="${fins[k].name}: ${g>=0?'+':''}${g.toFixed(0)}%"></span>`; });
-    const icon=L.divIcon({className:'barmk',html:`<div class="mbar2">${bars}</div>`,iconSize:[16,44],iconAnchor:[8,44]});
+    gs.forEach((g,k)=>{ if(g==null){ bars+='<span class="mb2col"><span class="mb2 mb2e"></span></span>'; return; }
+      const hpx=Math.max(3,Math.min(40,Math.abs(g)/hi*40));
+      const lbl=showN?`<span class="mb2n">${g>=0?'+':''}${g.toFixed(0)}%</span>`:'';
+      bars+=`<span class="mb2col">${lbl}<span class="mb2" style="height:${hpx}px;background:${fins[k].col};outline:1px solid rgba(255,255,255,.35)" title="${fins[k].name}: ${g>=0?'+':''}${g.toFixed(0)}%"></span></span>`; });
+    const H=showN?58:44; const icon=L.divIcon({className:'barmk',html:`<div class="mbar2">${bars}</div>`,iconSize:[30,H],iconAnchor:[15,H]});
     L.marker(c,{icon,keyboard:false,interactive:false}).addTo(barLayer); });
   barLayer.addTo(map); }
 // control de vistas + slider sobre el mapa (solo con indicador Traspaso)
@@ -473,7 +493,7 @@ function divCol(v){ if(v==null) return '#e5e5e5'; const m=(seqRange&&seqRange.ab
   return DIVPAL[ t<=-0.5?0 : t<=-0.15?1 : t<0.15?2 : t<0.5?3 : 4 ]; }
 
 function renderT(){
-  const eg=effGran();
+  const eg=effGran(); computeElim();
   if((eg==='distrito'||eg==='region') && !GEOMS[eg]){ ensureGeom(eg).then(renderT); return; }
   if((eg==='manzana'||eg==='manzana_est') && MANZ[unitId]===undefined){ document.getElementById('resumen').innerHTML='Cargando manzanas…'; ensureManz(unitId).then(renderT); return; }
   if(eg==='manzana_est'){
@@ -505,7 +525,7 @@ function renderT(){
   const fk=level+'|'+unitId;  // mantener vista: solo re-encuadrar al cambiar de UNIDAD (no indicador, granularidad ni elección)
   // Nacional NO auto-encuadra (deja la vista en la cuenca de Santiago); región/comuna sí se encuadran a su unidad
   if(fk!==mapFitKey){ if(level!=='nacional'){ try{ map.fitBounds(layer.getBounds(),{padding:[22,22],maxZoom:geo==='local'?14:11}); }catch(e){} } mapFitKey=fk; }
-  renderResumen(geo,feats.length); renderLeg(); renderTraspCtl(); renderRight(geo,feats,idp,data);
+  renderResumen(geo,feats.length); renderLeg(); renderTraspCtl(); renderElimCtl(); renderRight(geo,feats,idp,data);
 }
 let barLayer=null;
 function barsApplicable(){ return ['part','nulos','margen'].includes(colorby)||colorby.startsWith('cand:'); }

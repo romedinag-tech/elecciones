@@ -61,7 +61,7 @@ a{color:var(--accent);text-decoration:none}
 /* =========================================================================
    EXPLORADOR — workbench (sidebar nivel→unidad · topbar elección · módulos)
    ========================================================================= */
-#side{position:absolute;top:0;left:0;bottom:0;width:298px;z-index:1000;background:var(--surface);
+#side{position:absolute;top:54px;left:0;bottom:0;width:298px;z-index:1000;background:var(--surface);
   border-right:1px solid var(--line);box-shadow:var(--sh);display:flex;flex-direction:column}
 #side .sb-head{background:var(--grad);color:#fff;padding:18px 18px 16px;position:relative;overflow:hidden}
 #side .sb-head:before{content:"";position:absolute;inset:0;
@@ -101,7 +101,16 @@ a{color:var(--accent);text-decoration:none}
 .rn-comunas .u-btn{padding:5px 12px 5px 22px;font-size:.8rem}
 .rn-comunas .u-btn:not(.on){color:var(--ink)}
 
-main{position:absolute;top:0;left:298px;right:0;bottom:0;display:flex;flex-direction:column}
+main{position:absolute;top:54px;left:298px;right:0;bottom:0;display:flex;flex-direction:column}
+/* ---- barra de título superior (full-width) ---- */
+#apptop{position:absolute;top:0;left:0;right:0;height:54px;z-index:1100;display:flex;align-items:center;justify-content:space-between;
+  padding:0 20px;background:var(--grad);color:#fff;box-shadow:0 2px 12px rgba(14,35,56,.20)}
+#apptop .at-title{font-family:var(--font-display);font-size:1.18rem;font-weight:700;letter-spacing:-.01em;display:flex;align-items:baseline;gap:12px;white-space:nowrap}
+#apptop .at-title .at-sub{font-family:var(--font-ui);font-size:.68rem;font-weight:500;letter-spacing:.05em;opacity:.72;text-transform:uppercase}
+#apptop .at-right{display:flex;align-items:center;gap:16px}
+#apptop .at-by{font-size:.74rem;opacity:.82} #apptop .at-by b{font-weight:700}
+#apptop #themeBtn{position:static}
+@media(max-width:820px){ #apptop .at-sub,#apptop .at-by{display:none} #side{width:230px} main{left:230px} }
 .tb-lbl{font-size:.62rem;color:var(--ink-lo);flex:none;text-transform:uppercase;letter-spacing:.6px;font-weight:800}
 /* barra de controles del módulo Territorial (elección + colorear por) */
 #terrbar{flex:none;height:46px;background:var(--surface);border-bottom:1px solid var(--line);
@@ -170,10 +179,23 @@ table.xg th{font-weight:600;color:var(--ink-mid);padding:1px 10px;font-size:10.5
 #traspctl .tc-seg .trsp-b{flex:1;text-align:center;padding:4px 4px}
 #traspctl .tc-sl{display:flex;align-items:center;gap:7px;font-size:11px;color:var(--ink-mid);font-weight:700}
 #traspctl .tc-sl input[type=range]{flex:1;accent-color:var(--navy,#16365a);cursor:pointer}
+#elimctl{position:absolute;top:10px;left:52px;z-index:900;background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:6px 10px;box-shadow:var(--sh);display:none;font-size:11px;max-width:230px}
+#elimctl .ec-row{display:flex;align-items:center;gap:7px}
+#elimctl .ec-lbl{font-weight:700;color:var(--ink-mid);text-transform:uppercase;letter-spacing:.4px;font-size:10px}
+#elimctl .ec-b{width:21px;height:21px;border:1px solid var(--line-2);background:var(--surface-alt);border-radius:6px;font-weight:800;font-size:13px;line-height:1;cursor:pointer;color:var(--ink)}
+#elimctl .ec-b:disabled{opacity:.35;cursor:default}
+#elimctl .ec-n{font-weight:800;min-width:16px;text-align:center;color:var(--navy);font-size:14px}
+#elimctl .ec-el{margin-top:5px;color:var(--ink-mid);font-size:10px;line-height:1.35}
+#elimctl .ec-el b{color:var(--ink)} #elimctl .ec-hint{font-style:italic;opacity:.85}
+:root[data-theme="dark"] #elimctl{background:var(--card-grad);border-top-color:#2c3648;box-shadow:var(--card-3d);border-radius:12px}
+:root[data-theme="dark"] #elimctl .ec-b{background:linear-gradient(180deg,#232c3a,#161d28);border-top-color:#3c4a5f}
+:root[data-theme="dark"] #elimctl .ec-n{color:#ff9d2f;text-shadow:0 0 8px rgba(255,122,30,.4)}
 .barmk .mbar-n{display:block;text-align:center;font-size:9px;font-weight:700;color:#333;line-height:11px;text-shadow:0 0 2px #fff,0 0 2px #fff}
-.barmk .mbar2{display:flex;align-items:flex-end;justify-content:center;gap:2px;height:44px}
-.barmk .mbar2 .mb2{width:5px;border-radius:1px 1px 0 0;box-shadow:0 0 1px rgba(0,0,0,.35)}
-.barmk .mbar2 .mb2e{width:5px;height:2px;background:#cbd0d6;align-self:flex-end}
+.barmk .mbar2{display:flex;align-items:flex-end;justify-content:center;gap:4px;height:58px}
+.barmk .mbar2 .mb2col{display:flex;flex-direction:column;align-items:center;justify-content:flex-end}
+.barmk .mbar2 .mb2n{font-size:9px;font-weight:800;line-height:11px;color:#fff;background:rgba(10,14,22,.82);border-radius:3px;padding:0 3px;margin-bottom:2px;white-space:nowrap;letter-spacing:.2px}
+.barmk .mbar2 .mb2{width:7px;border-radius:2px 2px 0 0;box-shadow:0 1px 4px rgba(0,0,0,.55)}
+.barmk .mbar2 .mb2e{width:7px;height:2px;background:#8a93a5;align-self:flex-end}
 .xg-c .xg-ci{display:block;font-size:9px;font-weight:600;opacity:.75;margin-top:1px}
 .bot-flex{display:flex;gap:22px;align-items:flex-start;flex-wrap:wrap}
 .bot-2col{display:grid;grid-template-columns:1fr 1fr;gap:24px;align-items:start}
@@ -445,7 +467,13 @@ table.xg th{font-weight:600;color:var(--ink-mid);padding:1px 10px;font-size:10.5
 :root[data-theme="dark"] .mth-tag{ background:rgba(255,120,40,.14); color:#ff9d2f; border-color:rgba(255,120,40,.30); }
 :root[data-theme="dark"] .xg-title,:root[data-theme="dark"] .sz-h,:root[data-theme="dark"] .ts-h{ color:var(--ink); }
 :root[data-theme="dark"] .r-com{ color:var(--ink); } :root[data-theme="dark"] .r-el{ color:var(--ink-mid); }
-/* toggle de tema (arriba-derecha del header del sidebar) */
+/* barra de título en oscuro */
+:root[data-theme="dark"] #apptop{ background:linear-gradient(180deg,#12161f,#0a0e15); border-bottom:1px solid var(--line);
+  box-shadow:0 2px 16px rgba(0,0,0,.55); }
+:root[data-theme="dark"] #apptop .at-title{ color:#f3f6fb; text-shadow:0 0 14px rgba(255,122,30,.32); }
+:root[data-theme="dark"] #apptop .at-title .at-sub{ color:#ff9d2f; opacity:.9; text-shadow:0 0 8px rgba(255,122,30,.4); }
+:root[data-theme="dark"] #apptop .at-by b{ color:#ff9d2f; }
+/* toggle de tema */
 #themeBtn{ position:absolute; top:14px; right:14px; z-index:3; width:30px;height:30px;border-radius:9px; line-height:1;
   border:1px solid rgba(255,255,255,.22); background:rgba(255,255,255,.12); color:#fff; cursor:pointer; font-size:15px; }
 #themeBtn:hover{ background:rgba(255,255,255,.20); }
