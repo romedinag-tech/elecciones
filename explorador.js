@@ -1,5 +1,5 @@
 // Explorador territorial electoral — workbench: nivel → unidad → módulos. Elección elegida DENTRO de cada módulo.
-const V='68';
+const V='69';
 // ---- tema claro/oscuro ----
 try{ if(localStorage.getItem('elec_theme')==='dark') document.documentElement.setAttribute('data-theme','dark'); }catch(e){}
 function isDark(){ return document.documentElement.getAttribute('data-theme')==='dark'; }
@@ -127,7 +127,7 @@ function selectUnit(id,btn){ unitId=id;
   document.getElementById('tabs').style.display='flex'; renderTabs(); showTab(tab); }
 function showPlaceholder(html){ unitId=null; document.getElementById('tabs').style.display='none';
   ['panelC','panelD','panelR','panelT'].forEach(p=>document.getElementById(p).classList.remove('show'));
-  const ph=document.getElementById('placeholder'); ph.style.display='flex'; ph.querySelector('.ph-card p').innerHTML=html; }
+  const ph=document.getElementById('placeholder'); ph.style.display='flex'; ph.querySelector('.ph-card p').innerHTML=html; renderSubject(); }
 
 const MODS=[{k:'C',lbl:'Características principales'},{k:'T',lbl:'Análisis territorial'},
   {k:'D',lbl:'Análisis tendencial'},{k:'R',lbl:'Drivers'},{k:'P',lbl:'Predictivo',soon:1}];
@@ -145,7 +145,39 @@ function showTab(t){ tab=t;
   else if(t==='T'){ ensureMap(); document.getElementById('elecBtn').textContent=elecInfo(elecSel).label+' · '+elecInfo(elecSel).year;
     loadTerr(elecSel).then(()=>{ buildCandsel(); buildGranul(); buildIndics(); setTimeout(()=>{ map.invalidateSize(); renderT(); },30); }); }
   else if(t==='D') renderD();
-  else if(t==='R') renderR(); }
+  else if(t==='R') renderR();
+  renderSubject(); }
+
+// ── HEADER DE SUJETO: declara SIEMPRE qué unidad / indicador / candidato se analiza (orientación) ──
+function unitName(){ const o=(KPI[level]||{})[unitId]; return o?cap(o.nombre||''):(unitId!=null?(''+unitId):''); }
+function levelLbl(){ return (LEVELS.find(l=>l.k===level)||{}).lbl||''; }
+function candUnitMetric(i){ if(!TERR||!TERR.comuna) return ''; const cuts=unitCuts(); let val=0,vi=0;
+  for(const cut in TERR.comuna){ if(cuts&&!cuts.has(+cut)) continue; const u=TERR.comuna[cut]; val+=(u.val||0); vi+=((u.v&&u.v[i])||0); }
+  if(!val) return ''; return `${(100*vi/val).toFixed(1)}% · ${fmtN(vi)} votos`; }
+function renderSubject(){ const el=document.getElementById('subject'); if(!el) return;
+  if(unitId==null){ el.classList.remove('show'); el.innerHTML=''; return; }
+  const nm=unitName();
+  const crumbs=[`<button class="crumb" data-cr="nacional">Chile</button>`];
+  if(level==='comuna'){ const reg=CUTMAP[unitId]&&CUTMAP[unitId].reg;
+    const rn=(reg!=null&&(KPI['region']||{})[reg])?cap(KPI['region'][reg].nombre):null;
+    if(rn) crumbs.push(`<button class="crumb" data-cr="region:${reg}">${rn}</button>`); }
+  crumbs.push(`<span class="crumb cur">${nm}</span>`);
+  let eye=levelLbl();
+  if(tab==='T'&&TERR&&TERR.meta) eye+=` · ${TERR.meta.label} ${elecInfo(elecSel).year}`;
+  let focus='';
+  if(tab==='T'&&colorby&&colorby.indexOf('cand:')===0&&TERR&&TERR.candidatos){
+    const idx=+colorby.split(':')[1]; const c=TERR.candidatos[idx];
+    if(c){ const col=candCol(c.i!=null?c.i:idx); const met=candUnitMetric(c.i!=null?c.i:idx);
+      focus=`<div class="subj-focus"><span class="sf-chip" style="background:${col}"></span>`+
+        `<div class="sf-txt"><div class="sf-eye">${c.bloque||'Independiente / otro'}</div>`+
+        `<div class="sf-name">${cap(c.nombre)}</div>${met?`<div class="sf-met">${met}</div>`:''}</div></div>`; } }
+  el.innerHTML=`<div class="subj-main"><div class="subj-crumbs">${crumbs.join('<span class="crsep">›</span>')}</div>`+
+    `<h1 class="subj-h1">${nm}</h1><div class="subj-eye">${eye}</div></div>${focus}`;
+  el.classList.add('show');
+  el.querySelectorAll('.crumb[data-cr]').forEach(b=>b.onclick=()=>{ const v=b.dataset.cr;
+    if(v==='nacional'){ setLevel('nacional'); const first=document.querySelector('#menu .u-btn'); if(first) first.click(); }
+    else if(v.indexOf('region:')===0){ const rid=v.split(':')[1]; setLevel('region');
+      const rb=[...document.querySelectorAll('#menu .u-btn')].find(x=>x.dataset.id==rid); if(rb) rb.click(); } }); }
 
 // =================== MÓDULO Características ===================
 function fmtN(v){ return v==null?'—':Math.round(v).toLocaleString('es-CL'); }
@@ -548,7 +580,7 @@ function renderT(){
     let ct=0; for(const c in TERR.comuna){ if(!cuts||cuts.has(+c)) ct+=(TERR.comuna[c].val||0); }
     let lt=0; feats.forEach(f=>{ const u=data[String(f.properties[idp])]; if(u) lt+=(u.val||0); });
     if(ct>0) LOCALCOV=lt/ct; }
-  renderResumen(geo,feats.filter(hasData).length); renderLeg(); renderTraspCtl(); renderElimCtl(); renderRight(geo,feats,idp,data);
+  renderResumen(geo,feats.filter(hasData).length); renderLeg(); renderTraspCtl(); renderElimCtl(); renderRight(geo,feats,idp,data); renderSubject();
 }
 let barLayer=null;
 function barsApplicable(){ return ['part','nulos','margen'].includes(colorby)||colorby.startsWith('cand:'); }
