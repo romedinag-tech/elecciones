@@ -1,5 +1,21 @@
 // Explorador territorial electoral — workbench: nivel → unidad → módulos. Elección elegida DENTRO de cada módulo.
-const V='56';
+const V='57';
+// ---- tema claro/oscuro ----
+try{ if(localStorage.getItem('elec_theme')==='dark') document.documentElement.setAttribute('data-theme','dark'); }catch(e){}
+function isDark(){ return document.documentElement.getAttribute('data-theme')==='dark'; }
+const MAP_LIGHT='https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png';
+const MAP_DARK='https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png';
+let mapBaseLayer=null;
+function setTheme(dark){
+  document.documentElement.setAttribute('data-theme',dark?'dark':'light');
+  try{ localStorage.setItem('elec_theme',dark?'dark':'light'); }catch(e){}
+  SEQ = dark?SEQ_DARK.slice():SEQ_LIGHT.slice();
+  if(mapBaseLayer) mapBaseLayer.setUrl(dark?MAP_DARK:MAP_LIGHT);
+  const b=document.getElementById('themeBtn'); if(b) b.textContent=dark?'☀':'☾';
+  try{ if(map&&tab==='T'&&unitId&&typeof renderT==='function') renderT(); }catch(e){}
+}
+document.addEventListener('DOMContentLoaded',()=>{ const b=document.getElementById('themeBtn');
+  if(b){ b.textContent=isDark()?'☀':'☾'; b.onclick=()=>setTheme(!isDark()); } });
 const LEVELS=[{k:'nacional',lbl:'Nacional'},{k:'region',lbl:'Región'},{k:'distrito',lbl:'Distrito'},
   {k:'circ_senatorial',lbl:'Circ. sen.'},{k:'metro',lbl:'Área metro'},{k:'comuna',lbl:'Comuna'}];
 const REG_ORDER=[15,1,2,3,4,5,13,6,7,16,8,9,14,10,11,12];
@@ -12,7 +28,9 @@ const BLOQCOL={'Izquierda':'#C62828',        // rojo carmesí (PC)
   'Derecha':'#1565C0',                       // azul rey (RN)
   'Derecha radical':'#4A148C'};              // índigo/purpúreo (Republicano/PSC)
 const OPCION_COL={'APRUEBO':'#3F8E86','A FAVOR':'#3F8E86','RECHAZO':'#C55A11','EN CONTRA':'#C55A11'};
-const SEQ=['#EFF3FB','#C6D9F0','#8CB3DE','#4A80C0','#16365A'];
+const SEQ_LIGHT=['#EFF3FB','#C6D9F0','#8CB3DE','#4A80C0','#16365A'];
+const SEQ_DARK=['#3a2a1c','#7a3f12','#b7600f','#e8781a','#ff9d2f'];  // rampa naranja en modo oscuro (indicadores numéricos)
+let SEQ = isDark()?SEQ_DARK.slice():SEQ_LIGHT.slice();
 const REF_LBL='Presidencial 1ª v. 2025';
 
 let CAT={}, KPI={}, GEOCOM=null, GEOCOMP=null, AREAS=null, TIDX={}, CUTMAP={}, REPR={};
@@ -187,8 +205,8 @@ function renderCbody(){ const o=(KPI[level]||{})[unitId]; const p=document.getEl
 function ensureMap(){ if(map) return;
   map=L.map('map',{preferCanvas:true,minZoom:3}).setView([-33.55,-70.66],9);  // primera imagen: cuenca de Santiago
   // capas base: Mapa (CARTO) / Satélite (Esri World Imagery) — mismo montaje que el visor de uso de suelo
-  const claro=L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png',
-    {attribution:'&copy; OpenStreetMap &copy; CARTO',subdomains:'abcd',maxZoom:19});
+  const claro=L.tileLayer(isDark()?MAP_DARK:MAP_LIGHT,
+    {attribution:'&copy; OpenStreetMap &copy; CARTO',subdomains:'abcd',maxZoom:19}); mapBaseLayer=claro;
   const sat=L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
     {attribution:'Imagery &copy; Esri, Maxar, Earthstar Geographics',maxZoom:19});
   const labels=L.tileLayer('https://{s}.basemaps.cartocdn.com/light_only_labels/{z}/{x}/{y}{r}.png',
