@@ -168,6 +168,16 @@ main{position:absolute;top:54px;left:298px;right:0;bottom:0;display:flex;flex-di
 #terrbottom{grid-column:1;grid-row:2;overflow:auto;background:var(--surface);border-top:1px solid var(--line);padding:10px 14px;font-size:12.5px}
 #terrbottom:empty{display:none}
 #terrbody:has(#terrbottom:empty){grid-template-rows:1fr 0}
+/* territorial en móvil: apilar (mapa arriba, panel y detalle abajo) en vez de grilla 2fr/1fr que aplasta el mapa */
+@media(max-width:640px){
+  #panelT.show{overflow-y:auto}
+  #terrbar{height:auto;flex-wrap:wrap;padding:8px 12px;gap:6px}
+  #indicbar{height:auto;flex-wrap:wrap;padding:7px 12px 8px}
+  #terrbody{display:flex;flex-direction:column;flex:none}
+  #mapwrap{height:52vh;min-height:280px;flex:none}
+  #terrside{width:auto;border-left:none;border-top:1px solid var(--line);overflow:visible}
+  #terrbottom{overflow:visible}
+}
 .xg-title{font-weight:700;color:var(--ink);font-size:12.5px;margin-bottom:6px}
 table.xg{border-collapse:separate;border-spacing:3px;font-size:11.5px}
 table.xg th{font-weight:600;color:var(--ink-mid);padding:1px 10px;font-size:10.5px}
@@ -259,7 +269,7 @@ table.xg th{font-weight:600;color:var(--ink-mid);padding:1px 10px;font-size:10.5
 .ts-dot{width:9px;height:9px;border-radius:2px;flex:none;display:inline-block}
 .ts-liV{color:var(--navy);font-weight:700;flex:none;font-variant-numeric:tabular-nums}
 .ts-more{color:var(--ink-lo);font-size:.7rem;padding:8px 2px;font-style:italic}
-@media(max-width:1100px){ #terrside{width:270px} }
+@media(min-width:641px) and (max-width:1100px){ #terrside{width:270px} }
 #placeholder{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;padding:24px}
 /* silueta de Chile (identidad) en el estado vacío — SVG como máscara → toma el color del tema */
 .ph-chile{width:104px;height:188px;margin:0 auto 14px;background-color:var(--navy);opacity:.92;
