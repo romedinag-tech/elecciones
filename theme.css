@@ -93,7 +93,10 @@ main{position:absolute;top:54px;left:298px;right:0;bottom:0;display:flex;flex-di
 /* ---- barra de título superior (full-width) ---- */
 #apptop{position:absolute;top:0;left:0;right:0;height:54px;z-index:1100;display:flex;align-items:center;justify-content:space-between;
   padding:0 20px;background:var(--grad);color:#fff;box-shadow:0 2px 12px rgba(14,35,56,.20)}
-#apptop .at-title{font-family:var(--font-display);font-size:1.18rem;font-weight:700;letter-spacing:-.01em;display:flex;align-items:baseline;gap:12px;white-space:nowrap}
+#apptop .at-title{font-family:var(--font-display);font-size:1.18rem;font-weight:700;letter-spacing:-.01em;display:flex;align-items:center;gap:12px;white-space:nowrap}
+#apptop .at-chile{display:inline-block;width:12px;height:30px;flex:none;background-color:currentColor;opacity:.9;
+  -webkit-mask:url(chile.svg?v=74) no-repeat center/contain;mask:url(chile.svg?v=74) no-repeat center/contain}
+:root[data-theme="dark"] #apptop .at-chile{background-color:#ff9d2f;filter:drop-shadow(0 0 6px rgba(255,122,30,.5))}
 #apptop .at-title .at-sub{font-family:var(--font-ui);font-size:.68rem;font-weight:500;letter-spacing:.05em;opacity:.72;text-transform:uppercase}
 #apptop .at-right{display:flex;align-items:center;gap:16px}
 #apptop .at-by{font-size:.74rem;opacity:.82} #apptop .at-by b{font-weight:700}
@@ -243,6 +246,10 @@ table.xg th{font-weight:600;color:var(--ink-mid);padding:1px 10px;font-size:10.5
 .ts-more{color:var(--ink-lo);font-size:.7rem;padding:8px 2px;font-style:italic}
 @media(max-width:1100px){ #terrside{width:270px} }
 #placeholder{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;padding:24px}
+/* silueta de Chile (identidad) en el estado vacío — SVG como máscara → toma el color del tema */
+.ph-chile{width:104px;height:188px;margin:0 auto 14px;background-color:var(--navy);opacity:.92;
+  -webkit-mask:url(chile.svg?v=73) no-repeat center/contain;mask:url(chile.svg?v=73) no-repeat center/contain}
+:root[data-theme="dark"] .ph-chile{background-color:#ff9d2f;opacity:.9;filter:drop-shadow(0 0 10px rgba(255,122,30,.4))}
 .ph-card{max-width:460px;text-align:center;background:var(--surface);border:1px solid var(--line);border-radius:var(--r-lg);
   box-shadow:var(--sh);padding:30px 34px}
 .ph-card h2{font-size:1.3rem;margin:0 0 8px} .ph-card p{color:var(--ink-mid);font-size:.9rem;line-height:1.5;margin:0}
