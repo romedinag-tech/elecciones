@@ -1,5 +1,5 @@
 // Explorador territorial electoral — workbench: nivel → unidad → módulos. Elección elegida DENTRO de cada módulo.
-const V='76';
+const V='78';
 // ---- tema claro/oscuro ----
 try{ if(localStorage.getItem('elec_theme')==='dark') document.documentElement.setAttribute('data-theme','dark'); }catch(e){}
 function isDark(){ return document.documentElement.getAttribute('data-theme')==='dark'; }
@@ -24,6 +24,20 @@ document.addEventListener('DOMContentLoaded',()=>{ const b=document.getElementBy
 const LEVELS=[{k:'nacional',lbl:'Nacional'},{k:'region',lbl:'Región'},{k:'distrito',lbl:'Distrito'},
   {k:'circ_senatorial',lbl:'Circ. sen.'},{k:'metro',lbl:'Área metro'},{k:'comuna',lbl:'Comuna'}];
 const REG_ORDER=[15,1,2,3,4,5,13,6,7,16,8,9,14,10,11,12];
+// Íconos (SVG inline, currentColor, trazo ~1.4) para niveles y pestañas — identidad + escaneabilidad
+const ICONS={
+  nacional:'<circle cx="8" cy="8" r="6"/><path d="M2 8h12M8 2c2.6 2.6 2.6 9.4 0 12M8 2c-2.6 2.6-2.6 9.4 0 12"/>',
+  region:'<path d="M8 2.4l5 2v6.2l-5 3-5-3V4.4z"/>',
+  distrito:'<rect x="2.4" y="2.4" width="11.2" height="11.2" rx="1.2"/><path d="M8 2.4v11.2M2.4 8h11.2"/>',
+  circ_senatorial:'<path d="M8 2.2L13.5 5H2.5z"/><path d="M4 6v5M8 6v5M12 6v5"/><path d="M2.6 13h10.8"/>',
+  metro:'<rect x="2.2" y="6.5" width="3.6" height="7"/><rect x="6.4" y="3" width="3.6" height="10.5"/><rect x="10.6" y="8.5" width="3.2" height="5"/>',
+  comuna:'<path d="M8 14.2c3-3.2 4.6-5.6 4.6-8A4.6 4.6 0 0 0 3.4 6.2c0 2.4 1.6 4.8 4.6 8z"/><circle cx="8" cy="6.2" r="1.9"/>',
+  C:'<rect x="3" y="2.2" width="10" height="11.6" rx="1.2"/><path d="M5.4 5.2h5.2M5.4 8h5.2M5.4 10.8h3.4"/>',
+  T:'<path d="M6 2.6L2.2 4.4v9.2L6 11.8l4 1.8 3.8-1.8V2.6L10 4.4z"/><path d="M6 2.6v9.2M10 4.4v9.2"/>',
+  D:'<path d="M2.4 2.2v11.4h11.4"/><path d="M3.4 11l3.2-3.2 2.6 1.8 4.2-5"/>',
+  R:'<path d="M3 4.2h10M3 8h10M3 11.8h10"/><circle cx="6" cy="4.2" r="1.7"/><circle cx="10.4" cy="8" r="1.7"/><circle cx="5" cy="11.8" r="1.7"/>',
+  P:'<path d="M2.4 11.6l4-4 3 2 4.2-5"/><path d="M11 4.6h3v3"/>'};
+function icoSVG(k){ return ICONS[k]?`<svg class="ico" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${ICONS[k]}</svg>`:''; }
 // ══ MÓDULO DE COLOR ELECTORAL (dato) — NEUTRALIDAD ══════════════════════════════
 // Los 7 bloques van a LUMINANCIA y SATURACIÓN uniformes (verificado: var(Lrel)=0.01) para que
 // NINGUNO resalte por diseño; el eje izq→der se codifica por HUE (convención: izquierda=rojo/rosa,
@@ -92,7 +106,7 @@ function cap(s){ return (s||'').toLowerCase().split(' ').map(w=>w?w[0].toUpperCa
 
 // ---------- selector de NIVEL ----------
 function buildLevels(){ const box=document.getElementById('levels'); box.innerHTML='';
-  LEVELS.forEach(L=>{ const b=document.createElement('button'); b.textContent=L.lbl; b.dataset.k=L.k;
+  LEVELS.forEach(L=>{ const b=document.createElement('button'); b.innerHTML=icoSVG(L.k)+`<span>${L.lbl}</span>`; b.dataset.k=L.k;
     b.className=L.k===level?'on':''; b.onclick=()=>setLevel(L.k); box.appendChild(b); }); }
 function setLevel(k){ level=k; unitId=null;
   document.querySelectorAll('#levels button').forEach(b=>b.classList.toggle('on',b.dataset.k===k));
@@ -137,7 +151,7 @@ function showPlaceholder(html){ unitId=null; document.getElementById('tabs').sty
 const MODS=[{k:'C',lbl:'Características principales'},{k:'T',lbl:'Análisis territorial'},
   {k:'D',lbl:'Análisis tendencial'},{k:'R',lbl:'Drivers'},{k:'P',lbl:'Predictivo',soon:1}];
 function renderTabs(){ const t=document.getElementById('tabs'); t.innerHTML='';
-  MODS.forEach(M=>{ const b=document.createElement('button'); b.textContent=M.lbl+(M.soon?' ·':'');
+  MODS.forEach(M=>{ const b=document.createElement('button'); b.innerHTML=icoSVG(M.k)+`<span>${M.lbl+(M.soon?' ·':'')}</span>`;
     b.className='tabbtn'+(M.k===tab?' on':'')+(M.soon?' soon':''); if(M.soon){ b.title='Próximamente'; b.disabled=true; }
     b.onclick=()=>showTab(M.k); t.appendChild(b); }); }
 function showTab(t){ tab=t;

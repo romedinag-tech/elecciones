@@ -62,8 +62,11 @@ a{color:var(--accent);text-decoration:none}
 #side .sb-sub b{color:#fff}
 /* selector de nivel */
 .sb-levels{display:flex;flex-wrap:wrap;gap:5px;padding:12px 12px 4px}
-.sb-levels button{flex:1 1 28%;padding:6px 6px;border:1px solid var(--line-2);background:#fff;border-radius:16px;
-  font-size:.71rem;font-weight:700;color:var(--ink-mid);cursor:pointer;white-space:nowrap}
+.sb-levels button{flex:1 1 28%;padding:7px 5px;border:1px solid var(--line-2);background:#fff;border-radius:13px;
+  font-size:.68rem;font-weight:700;color:var(--ink-mid);cursor:pointer;white-space:nowrap;
+  display:flex;flex-direction:column;align-items:center;gap:3px}
+.sb-levels button .ico{width:16px;height:16px;opacity:.9}
+.tabbtn .ico{width:15px;height:15px;flex:none}
 .sb-levels button:hover{border-color:var(--accent);color:var(--accent)}
 .sb-levels button.on{background:var(--navy);color:#fff;border-color:var(--navy)}
 .sb-search{padding:8px 12px 8px}
@@ -129,7 +132,7 @@ main{position:absolute;top:54px;left:298px;right:0;bottom:0;display:flex;flex-di
 #tabs{display:none;flex:none;gap:2px;padding:0 16px;border-bottom:1px solid var(--line);background:var(--surface);
   align-items:flex-end;height:44px;box-shadow:var(--sh-sm);overflow-x:auto}
 .tabbtn{background:none;border:none;border-bottom:2.5px solid transparent;padding:11px 14px;font-size:.82rem;
-  font-weight:600;color:var(--ink-mid);cursor:pointer;white-space:nowrap}
+  font-weight:600;color:var(--ink-mid);cursor:pointer;white-space:nowrap;display:inline-flex;align-items:center;gap:7px}
 .tabbtn:hover:not(.soon){color:var(--navy)}
 .tabbtn.on{color:var(--navy);border-bottom-color:var(--accent)}
 .tabbtn.soon{color:var(--ink-lo);cursor:default;opacity:.45}
