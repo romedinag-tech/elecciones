@@ -1,5 +1,5 @@
 // Explorador territorial electoral — workbench: nivel → unidad → módulos. Elección elegida DENTRO de cada módulo.
-const V='79';
+const V='83';
 // ---- tema claro/oscuro ----
 try{ if(localStorage.getItem('elec_theme')==='dark') document.documentElement.setAttribute('data-theme','dark'); }catch(e){}
 function isDark(){ return document.documentElement.getAttribute('data-theme')==='dark'; }
@@ -43,6 +43,13 @@ const ICONS={
   R:'<path d="M3 4.2h10M3 8h10M3 11.8h10"/><circle cx="6" cy="4.2" r="1.7"/><circle cx="10.4" cy="8" r="1.7"/><circle cx="5" cy="11.8" r="1.7"/>',
   P:'<path d="M2.4 11.6l4-4 3 2 4.2-5"/><path d="M11 4.6h3v3"/>'};
 function icoSVG(k){ return ICONS[k]?`<svg class="ico" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${ICONS[k]}</svg>`:''; }
+// Avatares de candidato: foto libre (Wikimedia Commons) si existe en el manifiesto; si no, monograma de iniciales.
+let FOTOMAP={};
+function fotoSlug(s){ return (s||'').normalize('NFKD').replace(/[̀-ͯ]/g,'').toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-+|-+$/g,''); }
+function iniciales(name){ const t=(name||'').trim().split(/\s+/).filter(Boolean); return t.length?(t[0][0]+(t.length>1?t[t.length-1][0]:'')).toUpperCase():'?'; }
+function avatarHTML(name,size,col){ const f=FOTOMAP[fotoSlug(name)];
+  if(f) return `<span class="avatar" style="width:${size}px;height:${size}px"><img src="data/fotos/${f}?v=${V}" alt="" loading="lazy"></span>`;
+  return `<span class="avatar mono" style="width:${size}px;height:${size}px;font-size:${Math.round(size*.4)}px;background:${col||'var(--navy)'}">${iniciales(name)}</span>`; }
 // ══ MÓDULO DE COLOR ELECTORAL (dato) — NEUTRALIDAD ══════════════════════════════
 // Los 7 bloques van a LUMINANCIA y SATURACIÓN uniformes (verificado: var(Lrel)=0.01) para que
 // NINGUNO resalte por diseño; el eje izq→der se codifica por HUE (convención: izquierda=rojo/rosa,
@@ -94,8 +101,9 @@ Promise.all([
   fetch('data/representantes.json?v='+V).then(r=>r.json()).catch(()=>({})),
   fetch('data/confiabilidad_index.json?v='+V).then(r=>r.json()).catch(()=>({})),
   fetch('data/cross_index.json?v='+V).then(r=>r.json()).catch(()=>({})),
-]).then(([cat,kpi,gcom,areas,gcomp,tidx,repr,confidx,crossidx])=>{
-  CAT=cat; KPI=kpi; GEOCOM=gcom; AREAS=areas; GEOCOMP=gcomp||gcom; TIDX=tidx; REPR=repr; CONFIDX=confidx||{}; CROSSIDX=crossidx||{};
+  fetch('data/fotos/index.json?v='+V).then(r=>r.ok?r.json():{}).catch(()=>({})),  // retratos libres (Commons) por slug
+]).then(([cat,kpi,gcom,areas,gcomp,tidx,repr,confidx,crossidx,fotos])=>{
+  CAT=cat; KPI=kpi; GEOCOM=gcom; AREAS=areas; GEOCOMP=gcomp||gcom; TIDX=tidx; REPR=repr; CONFIDX=confidx||{}; CROSSIDX=crossidx||{}; FOTOMAP=fotos||{};
   Object.entries(KPI.comuna).forEach(([cut,o])=>CUTMAP[cut]={reg:o.reg,dist:o.dist,circ:o.circ,metro:o.metro,nombre:o.nombre});
   elecSel=defaultElec();
   buildLevels(); buildMenu(); selectUnit('CL');
@@ -192,8 +200,8 @@ function renderSubject(){ const el=document.getElementById('subject'); if(!el) r
   if(tab==='T'&&colorby&&colorby.indexOf('cand:')===0&&TERR&&TERR.candidatos){
     const idx=+colorby.split(':')[1]; const c=TERR.candidatos[idx];
     if(c){ const col=candCol(c.i!=null?c.i:idx); const met=candUnitMetric(c.i!=null?c.i:idx);
-      focus=`<div class="subj-focus"><span class="sf-chip" style="background:${col}"></span>`+
-        `<div class="sf-txt"><div class="sf-eye">${c.bloque||'Independiente / otro'}</div>`+
+      focus=`<div class="subj-focus">${avatarHTML(c.nombre,48,col)}`+
+        `<div class="sf-txt"><div class="sf-eye"><i class="sf-dot" style="background:${col}"></i>${c.bloque||'Independiente / otro'}</div>`+
         `<div class="sf-name">${cap(c.nombre)}</div>${met?`<div class="sf-met">${met}</div>`:''}</div></div>`; } }
   el.innerHTML=`<div class="subj-main"><div class="subj-crumbs">${crumbs.join('<span class="crsep">›</span>')}</div>`+
     `<h1 class="subj-h1">${nm}</h1><div class="subj-eye">${eye}</div></div>${focus}`;
@@ -1073,7 +1081,7 @@ function renderSummary(geo,feats,idp,data){ const o=(KPI[level]||{})[unitId]||{}
     <div class="mth-subt">${TERR.meta.label} ${elecInfo(elecSel).year} · <b>${fmtN(emit)}</b> votaron · ${fmtN(tot.val)} válidos</div>`;
   const ranked=Object.entries(tot.v).sort((a,b)=>b[1]-a[1]).slice(0,12);
   h+=ranked.map(([i,vs])=>{ const c=TERR.candidatos[+i]; const pct=100*vs/tot.val; const sel=colorby==='cand:'+i;
-    return `<div class="ts-row${sel?' sel':''}"${sel?` style="box-shadow:inset 3px 0 0 ${candCol(+i)}"`:''}><span class="ts-name">${cap(c.nombre)}</span><span class="ts-bar"><i style="width:${pct}%;background:${candCol(+i)}"></i></span><span class="ts-pct">${pct.toFixed(1)}%<span class="ts-vot">${fmtN(vs)}</span></span></div>`; }).join('');
+    return `<div class="ts-row${sel?' sel':''}"${sel?` style="box-shadow:inset 3px 0 0 ${candCol(+i)}"`:''}>${avatarHTML(c.nombre,22,candCol(+i))}<span class="ts-name">${cap(c.nombre)}</span><span class="ts-bar"><i style="width:${pct}%;background:${candCol(+i)}"></i></span><span class="ts-pct">${pct.toFixed(1)}%<span class="ts-vot">${fmtN(vs)}</span></span></div>`; }).join('');
   h+=`</div><div class="sz-note" style="margin-top:10px">Elige <b>Participación</b>, <b>un candidato</b> o <b>Blancos+nulos</b> para estimar los sesgos demográficos por grupo.</div></div>`;
   document.getElementById('terrside').innerHTML=h; }
 function colLabel(){ if(colorby==='winner') return 'ganador'; if(colorby==='part') return 'participación';
