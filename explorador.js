@@ -1,5 +1,5 @@
 // Explorador territorial electoral — workbench: nivel → unidad → módulos. Elección elegida DENTRO de cada módulo.
-const V='72';
+const V='73';
 // ---- tema claro/oscuro ----
 try{ if(localStorage.getItem('elec_theme')==='dark') document.documentElement.setAttribute('data-theme','dark'); }catch(e){}
 function isDark(){ return document.documentElement.getAttribute('data-theme')==='dark'; }
@@ -1086,8 +1086,13 @@ function renderLeg(){ const el=document.getElementById('leg2');
     el.innerHTML=Object.entries(BLOQCOL).map(([b,c])=>`<span class="lg"><i style="background:${c}"></i>${b}</span>`).join('')
       +'<span class="lg"><i style="background:#3F8E86"></i>Apruebo</span><span class="lg"><i style="background:#C55A11"></i>Rechazo</span>';
   } else { const r=seqRange||{}; const suf=colorby==='margen'?'pp':'%'; const f=v=>v==null?'—':v.toFixed(colorby==='part'?0:1)+suf;
-    el.innerHTML=`<span class="lg" style="width:100%;font-weight:700;color:#333">${colLabel()}</span>`+
-      SEQ.map((c,i)=>`<span class="lg"><i style="background:${c}"></i>${i===0?f(r.lo):i===4?f(r.hi):''}</span>`).join(''); } }
+    // dirección explícita de la rampa: se invierte por tema (fondo claro→oscuro=más ; fondo oscuro→brillante=más)
+    const dir=isDark()?'apagado → brillante = menor → mayor':'claro → oscuro = menor → mayor';
+    el.innerHTML=`<span class="lg lg-title">${colLabel()}</span>`+
+      `<span class="lg lg-end">menor</span>`+
+      SEQ.map((c,i)=>`<span class="lg"><i style="background:${c}"></i>${i===0?f(r.lo):i===4?f(r.hi):''}</span>`).join('')+
+      `<span class="lg lg-end">mayor</span>`+
+      `<span class="lg lg-dir">${dir}</span>`; } }
 
 // =================== MÓDULO Análisis tendencial ===================
 const TSERIES=[{k:'presidencial_1v',lbl:'Presidencial'},{k:'diputados',lbl:'Diputados'},{k:'senadores',lbl:'Senadores'},
