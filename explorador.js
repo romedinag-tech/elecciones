@@ -526,6 +526,7 @@ function renderTraspCtl(){ let c=document.getElementById('traspctl');
 // ---- consistencia 1ª/2ª vuelta (bloque ganador se repite entre rondas) ----
 let CONSIST={}, CONSIST_PCT=null;
 let LOCALCOV=null;  // cobertura de la vista de polígono: voto en recintos dibujados ÷ voto comunal (el padrón de recintos cambia por año → mapas locales viejos son parciales)
+let RECON={}, RECONN=0;  // reconstrucción por cercanía: recCode→dato del recinto activo más cercano (áreas de influencia del año) + conteo
 function fetchTerr(e){ if(TERRCACHE[e]) return Promise.resolve(TERRCACHE[e]);
   return fetch('data/territorial/'+e+'.json?v='+V).then(r=>r.json()).then(d=>{TERRCACHE[e]=d; return d;}); }
 function rounds(e){ const off=officeOf(e), yr=e.slice(0,4); const all=allElecList().filter(x=>x.slice(0,4)===yr&&officeOf(x)===off);
@@ -586,10 +587,27 @@ function renderT(){
     seqRange={lo:pctl(vals,.05),hi:pctl(vals,.95)}; }
   const barsMode = chartType==='barras' && barsApplicable() && feats.length<=700;
   const w0=geo==='local'?.7:geo==='comuna'?.6:.8;
-  const hasData=f=>data[String(f.properties[idp])]!=null;  // recinto/unidad sin datos en ESTA elección → no se pinta (evita "huecos grises" de recintos no activos ese año)
+  // RECONSTRUCCIÓN v1 (áreas de influencia del año): un recinto sin dato propio adopta el resultado OBSERVADO del
+  // recinto activo MÁS CERCANO — la geometría 2024-25 tesela con más recintos que en años previos, pero toda la gente
+  // votó en el recinto que le tocaba entonces. Se dibuja más tenue y sin borde para distinguirlo del dato observado.
+  RECON={};
+  if(geo==='local' && colorby==='winner' && feats.length<1600){
+    const act=[],nod=[];
+    feats.forEach(f=>{ const c=featCenter(f); if(!c) return; const id=String(f.properties[idp]); (data[id]!=null?act:nod).push({id,c}); });
+    if(act.length && nod.length) for(const nd of nod){ let bid=null,bd=Infinity;
+      for(const a of act){ const dx=a.c[0]-nd.c[0],dy=a.c[1]-nd.c[1],d=dx*dx+dy*dy; if(d<bd){bd=d;bid=a.id;} }
+      if(bid) RECON[nd.id]=data[bid]; }
+  }
+  RECONN=Object.keys(RECON).length;
+  const dataReal=f=>data[String(f.properties[idp])];
+  const dataOf=f=>{ const id=String(f.properties[idp]); return data[id]!=null?data[id]:(RECON[id]||null); };
+  const isRecon=f=>{ const id=String(f.properties[idp]); return data[id]==null && RECON[id]!=null; };
+  const hasData=f=>dataOf(f)!=null;
   layer=L.geoJSON({type:'FeatureCollection',features:feats},{ renderer:canvas,
-    style:f=>{ const h=hasData(f); return {color:'#fff',weight:h?w0:0,opacity:h?1:0,fillColor:barsMode?'#eef1f5':colorFeat(data[String(f.properties[idp])],f),fillOpacity:h?(barsMode?.5:.82):0}; },
-    onEachFeature:(f,l)=>{ if(!hasData(f)) return;  // sin datos: no interactúa (no popup ni hover sobre espacio vacío)
+    style:f=>{ const d=dataOf(f); if(!d) return {weight:0,opacity:0,fillOpacity:0}; const rec=isRecon(f);
+      return {color:'#fff',weight:rec?0:w0,opacity:rec?0:1,fillColor:barsMode?'#eef1f5':colorFeat(d,f),fillOpacity:barsMode?.5:(rec?.5:.82)}; },
+    onEachFeature:(f,l)=>{ if(!hasData(f)) return;
+      if(isRecon(f)){ l.bindPopup('<b>Área reconstruida por cercanía</b><br>Sin recinto propio en '+elecInfo(elecSel).year+'; muestra el resultado del recinto activo más cercano (estimación).'); return; }
       l.bindPopup(popupSub(f,geo,idp,data));
       l.on('mouseover',()=>l.setStyle({weight:2})); l.on('mouseout',()=>l.setStyle({weight:w0})); }
   }).addTo(map);
@@ -604,7 +622,7 @@ function renderT(){
     let ct=0; for(const c in TERR.comuna){ if(!cuts||cuts.has(+c)) ct+=(TERR.comuna[c].val||0); }
     let lt=0; feats.forEach(f=>{ const u=data[String(f.properties[idp])]; if(u) lt+=(u.val||0); });
     if(ct>0) LOCALCOV=lt/ct; }
-  renderResumen(geo,feats.filter(hasData).length); renderLeg(); renderTraspCtl(); renderElimCtl(); renderRight(geo,feats,idp,data); renderSubject();
+  renderResumen(geo,feats.filter(f=>data[String(f.properties[idp])]!=null).length); renderLeg(); renderTraspCtl(); renderElimCtl(); renderRight(geo,feats,idp,data); renderSubject();
 }
 let barLayer=null;
 function barsApplicable(){ return ['part','nulos','margen'].includes(colorby)||colorby.startsWith('cand:'); }
@@ -1077,7 +1095,9 @@ function renderResumen(geo,n){ const o=(KPI[level]||{})[unitId]||{};
   if(TERR.meta.has_local&&!localValid(elecSel))
     extra+=`<div class="r-hint" style="color:var(--or)">⚠ Las vistas por <b>recinto y manzana</b> no están disponibles para esta elección. Antes de la presidencial de nov-2021 el elector <b>no votaba necesariamente cerca de su domicilio</b>, así que el resultado de un recinto no representa a la población de su entorno (la geometría válida está pedida por transparencia al SERVEL). El análisis a nivel <b>Comuna</b> y superior sí es válido.</div>`;
   if(geo==='local'&&LOCALCOV!=null&&LOCALCOV<.97){ const pc=Math.round(LOCALCOV*100);
-    extra+=`<div class="r-hint" style="color:var(--or)">⚠ Este mapa por recinto muestra el <b>${pc}%</b> del voto de la elección: el padrón de locales cambia entre años y los recintos de ${elecInfo(elecSel).year} que ya no existen no tienen polígono que dibujar. La vista <b>Comuna</b> cubre el 100%.</div>`; }
+    extra+=`<div class="r-hint" style="color:var(--or)">⚠ Recintos observados: <b>${pc}%</b> del voto. El padrón de locales cambia entre años; la geometría es de 2024-25. La vista <b>Comuna</b> cubre el 100%.</div>`; }
+  if(geo==='local'&&RECONN>0)
+    extra+=`<div class="r-hint">Las áreas <b>más tenues</b> son <b>reconstruidas por cercanía</b>: recintos sin dato propio ese año, coloreados con el resultado del recinto activo más cercano — cubren el territorio que igualmente votó (estimación).</div>`;
   if(chartType==='barras'){ if(!barsApplicable()) extra+=`<div class="r-hint" style="color:var(--or)">Las barras verticales aplican a indicadores numéricos (participación, % candidato, blancos+nulos, margen). El indicador actual es categórico → se muestra coropleta.</div>`;
     else if(n>700) extra+=`<div class="r-hint" style="color:var(--or)">Demasiadas sub-unidades para barras; usa granularidad <b>Comuna</b>/<b>Distrito</b>.</div>`; }
   document.getElementById('resumen').innerHTML=`<div class="r-com">${cap(o.nombre||'')}</div>`+
