@@ -9,10 +9,11 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Source+Serif+4:opsz,wght@8..60,600;8..60,700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="tokens.css?v=67">
-<link rel="stylesheet" href="theme.css?v=75">
+<link rel="stylesheet" href="theme.css?v=77">
 </head>
 <body>
 <header id="apptop">
+  <button id="navToggle" aria-label="Abrir menú" aria-expanded="false">☰</button>
   <div class="at-title"><span class="at-chile" aria-hidden="true"></span>Panorama Electoral<span class="at-sub">Plataforma de Inteligencia de Datos</span></div>
   <div class="at-right">
     <span class="live-badge"><i class="led"></i>EN VIVO</span>
@@ -21,6 +22,7 @@
     <button id="themeBtn" class="hdr-btn" title="Tema claro / oscuro" aria-label="Cambiar tema">☾</button>
   </div>
 </header>
+<div id="navBackdrop"></div>
 <aside id="side">
   <div class="sb-head">
     <div class="nav"><b>Explorador</b> · <a href="tendencia.html">Tendencia</a> · <a href="recintos.html">Recintos</a></div>
@@ -75,6 +77,6 @@
   </div>
 </main>
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-<script src="explorador.js?v=74"></script>
+<script src="explorador.js?v=76"></script>
 </body>
 </html>

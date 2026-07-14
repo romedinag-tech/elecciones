@@ -1,5 +1,5 @@
 // Explorador territorial electoral — workbench: nivel → unidad → módulos. Elección elegida DENTRO de cada módulo.
-const V='74';
+const V='76';
 // ---- tema claro/oscuro ----
 try{ if(localStorage.getItem('elec_theme')==='dark') document.documentElement.setAttribute('data-theme','dark'); }catch(e){}
 function isDark(){ return document.documentElement.getAttribute('data-theme')==='dark'; }
@@ -16,7 +16,11 @@ function setTheme(dark){
 }
 document.addEventListener('DOMContentLoaded',()=>{ const b=document.getElementById('themeBtn');
   if(b){ b.textContent=isDark()?'☀':'☾'; b.onclick=()=>setTheme(!isDark()); }
-  const cb=document.getElementById('cbBtn'); if(cb){ cb.setAttribute('aria-pressed',CBMODE?'true':'false'); cb.classList.toggle('on',CBMODE); cb.onclick=()=>setCB(!CBMODE); } });
+  const cb=document.getElementById('cbBtn'); if(cb){ cb.setAttribute('aria-pressed',CBMODE?'true':'false'); cb.classList.toggle('on',CBMODE); cb.onclick=()=>setCB(!CBMODE); }
+  const nt=document.getElementById('navToggle'), bd=document.getElementById('navBackdrop');
+  const setNav=open=>{ document.body.classList.toggle('nav-open',open); if(nt) nt.setAttribute('aria-expanded',open?'true':'false'); };
+  if(nt) nt.onclick=()=>setNav(!document.body.classList.contains('nav-open'));
+  if(bd) bd.onclick=()=>setNav(false); });
 const LEVELS=[{k:'nacional',lbl:'Nacional'},{k:'region',lbl:'Región'},{k:'distrito',lbl:'Distrito'},
   {k:'circ_senatorial',lbl:'Circ. sen.'},{k:'metro',lbl:'Área metro'},{k:'comuna',lbl:'Comuna'}];
 const REG_ORDER=[15,1,2,3,4,5,13,6,7,16,8,9,14,10,11,12];
@@ -121,6 +125,7 @@ document.getElementById('buscar').addEventListener('input',e=>{ const q=e.target
 
 // ---------- unidad → módulos ----------
 function selectUnit(id,btn){ unitId=id;
+  document.body.classList.remove('nav-open');  // cierra el cajón móvil al elegir unidad
   document.querySelectorAll('#menu button.on').forEach(b=>b.classList.remove('on'));
   const b=btn||document.querySelector(`#menu .u-btn[data-id="${id}"]`); if(b){ b.classList.add('on'); const reg=b.closest('.rn-region'); if(reg) reg.classList.add('open'); }
   document.getElementById('placeholder').style.display='none';
