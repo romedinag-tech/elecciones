@@ -1,5 +1,5 @@
 // Explorador territorial electoral — workbench: nivel → unidad → módulos. Elección elegida DENTRO de cada módulo.
-const V='83';
+const V='84';
 // ---- tema claro/oscuro ----
 try{ if(localStorage.getItem('elec_theme')==='dark') document.documentElement.setAttribute('data-theme','dark'); }catch(e){}
 function isDark(){ return document.documentElement.getAttribute('data-theme')==='dark'; }
@@ -795,11 +795,13 @@ function renderMethods(){ const box=document.getElementById('terrside');
   Promise.all([ensureMesa(elecSel),ensureSesgos()]).then(()=>{
     const ms=unitMesas(); const s=((SESGOS[level]||{})[unitId]||{})[elecSel];
     const ml=colorby==='part'?'la participación':colorby==='nulos'?'los blancos+nulos':'el voto de '+cap((TERR.candidatos[+colorby.slice(5)]||{}).nombre||'');
-    if(colorby!=='part' && !ms.length){ box.innerHTML=`<div class="mth-pad"><div class="sz-hint">Sin datos de mesa por candidato para esta elección.</div></div>`; return; }
+    const hasBayes = colorby.startsWith('cand:') && !!CROSSIDX[elecSel];  // cruce bayesiano local (TRICEL sin mesa) disponible
+    if(colorby!=='part' && !ms.length && !hasBayes){ box.innerHTML=`<div class="mth-pad"><div class="sz-hint">Sin datos de mesa por candidato para esta elección.</div></div>`; return; }
+    const bayesOnly = !ms.length && hasBayes;
     let h=`<div class="mth-pad"><div class="sz-title">Sesgos de ${ml}`.replace('Sesgos de el ','Sesgos del ')+`</div>`+
-      `<div class="mth-subt">${colorby==='part'?'Tasa <b>observada</b> por grupo (padrón × votantes)':'Inferencia ecológica a <b>nivel de mesa</b>'} · ${ms.length} mesas</div><div class="mth-row">`;
+      `<div class="mth-subt">${colorby==='part'?'Tasa <b>observada</b> por grupo (padrón × votantes)':(bayesOnly?'Estimación <b>bayesiana espacial</b> · padrón por local (sin mesa)':'Inferencia ecológica a <b>nivel de mesa</b> · '+ms.length+' mesas')}</div><div class="mth-row">`;
     DEMOS.forEach(D=>{ h+=demoCard(D,ms,s); });
-    h+=`</div>`+ (colorby.startsWith('cand:')?renderCandTop():'') +`<div class="sz-note">${colorby==='part'?'<b>Observado</b>: dato oficial de quiénes votaron por grupo (SERVEL).':'<b>King</b>: inferencia ecológica a nivel de mesa (tomografía + MLE, cotas Duncan-Davis) — mismo enfoque que DecideChile. <b>Goodman</b>/<b>LS</b>: contraste. Género/edad/nacionalidad salen del padrón por mesa. Educación no está en el padrón (pendiente por censo).'} Falacia ecológica: estima grupos, no personas.</div></div>`;
+    h+=`</div>`+ (colorby.startsWith('cand:')?renderCandTop():'') +`<div class="sz-note">${colorby==='part'?'<b>Observado</b>: dato oficial de quiénes votaron por grupo (SERVEL).':(bayesOnly?'<b>Estimación bayesiana espacial</b>: inferencia ecológica con prior espacial (modelo multinomial por local, cotas de credibilidad). Esta elección viene por local (TRICEL), sin mesa; la nacionalidad no está en su descripción de votantes.':'<b>King</b>: inferencia ecológica a nivel de mesa (tomografía + MLE, cotas Duncan-Davis) — mismo enfoque que DecideChile. <b>Goodman</b>/<b>LS</b>: contraste. Género/edad/nacionalidad salen del padrón por mesa. Educación no está en el padrón (pendiente por censo).')} Falacia ecológica: estima grupos, no personas.</div></div>`;
     box.innerHTML=h; renderCross(ms,s);
   });
 }
