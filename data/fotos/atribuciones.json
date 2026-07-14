@@ -916,13 +916,6 @@
   "licencia": "CC BY-SA 4.0",
   "fuente": "Wikimedia Commons"
  },
- "luis-antonio-levi-aninao": {
-  "nombre": "LUIS ANTONIO LEVI ANINAO",
-  "archivo": "Luis Oro Giral (April 2022).jpg",
-  "autor": "Pompilos",
-  "licencia": "CC BY-SA 4.0",
-  "fuente": "Wikimedia Commons"
- },
  "miguel-becker-alvear": {
   "nombre": "MIGUEL BECKER ALVEAR",
   "archivo": "Miguel Ángel Becker Alvear.jpg",
@@ -977,13 +970,6 @@
   "archivo": "Julio Martínez UCR.png",
   "autor": "Unión Cívica Radical",
   "licencia": "Attribution",
-  "fuente": "Wikimedia Commons"
- },
- "paola-alejandra-venegas-arriagada": {
-  "nombre": "PAOLA ALEJANDRA VENEGAS ARRIAGADA",
-  "archivo": "Paola Tapia Salas.jpg",
-  "autor": "Gobierno de Chile",
-  "licencia": "CC BY 3.0 cl",
   "fuente": "Wikimedia Commons"
  },
  "gonzalo-daniel-martner-fanta": {
@@ -1411,6 +1397,27 @@
   "archivo": "Tomás Jocelyn-Holt en marcha por descentralización en Calama, Chile.jpg",
   "autor": "Jlatorreespinoza",
   "licencia": "CC BY-SA 4.0",
+  "fuente": "Wikimedia Commons"
+ },
+ "rene-saffirio-espinoza": {
+  "nombre": "RENE SAFFIRIO ESPINOZA",
+  "archivo": "René Saffirio Espinoza.jpg",
+  "autor": "Biblioteca del Congreso Nacional de Chile",
+  "licencia": "CC BY-SA 3.0 cl",
+  "fuente": "Wikimedia Commons"
+ },
+ "pedro-pablo-alvarez-salamanca-ramirez": {
+  "nombre": "PEDRO PABLO ALVAREZ-SALAMANCA RAMIREZ",
+  "archivo": "Pedro Pablo Álvarez-Salamanca Ramírez.jpg",
+  "autor": "Biblioteca del Congreso Nacional de Chile",
+  "licencia": "CC BY-SA 3.0 cl",
+  "fuente": "Wikimedia Commons"
+ },
+ "pablo-silva-amaya": {
+  "nombre": "PABLO SILVA AMAYA",
+  "archivo": "Intendente Pablo Silva.jpg",
+  "autor": "Gobierno de Chile",
+  "licencia": "CC BY 3.0 cl",
   "fuente": "Wikimedia Commons"
  }
 }
