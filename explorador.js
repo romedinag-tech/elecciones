@@ -1,5 +1,5 @@
 // Explorador territorial electoral — workbench: nivel → unidad → módulos. Elección elegida DENTRO de cada módulo.
-const V='78';
+const V='79';
 // ---- tema claro/oscuro ----
 try{ if(localStorage.getItem('elec_theme')==='dark') document.documentElement.setAttribute('data-theme','dark'); }catch(e){}
 function isDark(){ return document.documentElement.getAttribute('data-theme')==='dark'; }
@@ -20,7 +20,12 @@ document.addEventListener('DOMContentLoaded',()=>{ const b=document.getElementBy
   const nt=document.getElementById('navToggle'), bd=document.getElementById('navBackdrop');
   const setNav=open=>{ document.body.classList.toggle('nav-open',open); if(nt) nt.setAttribute('aria-expanded',open?'true':'false'); };
   if(nt) nt.onclick=()=>setNav(!document.body.classList.contains('nav-open'));
-  if(bd) bd.onclick=()=>setNav(false); });
+  if(bd) bd.onclick=()=>setNav(false);
+  const mb=document.getElementById('metBtn'), mm=document.getElementById('metModal'), mc=document.getElementById('metClose');
+  const showMet=on=>{ if(mm) mm.hidden=!on; };
+  if(mb) mb.onclick=()=>showMet(true); if(mc) mc.onclick=()=>showMet(false);
+  if(mm) mm.onclick=e=>{ if(e.target===mm) showMet(false); };
+  document.addEventListener('keydown',e=>{ if(e.key==='Escape'&&mm&&!mm.hidden) showMet(false); }); });
 const LEVELS=[{k:'nacional',lbl:'Nacional'},{k:'region',lbl:'Región'},{k:'distrito',lbl:'Distrito'},
   {k:'circ_senatorial',lbl:'Circ. sen.'},{k:'metro',lbl:'Área metro'},{k:'comuna',lbl:'Comuna'}];
 const REG_ORDER=[15,1,2,3,4,5,13,6,7,16,8,9,14,10,11,12];
@@ -1079,25 +1084,25 @@ function renderResumen(geo,n){ const o=(KPI[level]||{})[unitId]||{};
     `<div class="r-el">${TERR.meta.label} ${elecInfo(elecSel).year}</div>`+
     `${n} ${granName(geo)} · coloreado por <b>${colLabel()}</b>.`+extra; }
 function renderLeg(){ const el=document.getElementById('leg2');
-  if(colorby==='consist'){ el.innerHTML=`<span class="lg" style="width:100%;font-weight:700;color:#333">Consistencia 1ª/2ª vuelta</span>`+
+  if(colorby==='consist'){ el.innerHTML=`<span class="lg lg-title">Consistencia 1ª/2ª vuelta</span>`+
       `<span class="lg"><i style="background:#3F8E86"></i>mismo bloque</span><span class="lg"><i style="background:#C55A11"></i>cambió de bloque</span>`; return; }
   if(colorby==='swing'||colorby==='split'){ const m=(seqRange&&seqRange.abs)||10;
-    el.innerHTML=`<span class="lg" style="width:100%;font-weight:700;color:#333">${colLabel()} (pp)</span>`+
+    el.innerHTML=`<span class="lg lg-title">${colLabel()} (pp)</span>`+
       `<span class="lg"><i style="background:#2166ac"></i>← izq. −${m.toFixed(0)}</span>`+
       `<span class="lg"><i style="background:#f7f7f7;border:1px solid #ccc"></i>0</span>`+
       `<span class="lg"><i style="background:#b2182b"></i>der. +${m.toFixed(0)} →</span>`; return; }
-  if(colorby==='conf'){ el.innerHTML=`<span class="lg" style="width:100%;font-weight:700;color:#333">Confiabilidad geográfica</span>`+
+  if(colorby==='conf'){ el.innerHTML=`<span class="lg lg-title">Confiabilidad geográfica</span>`+
       `<span class="lg"><i style="background:${CONFRAMP[0]}"></i>0 · distorsión</span>`+
       CONFRAMP.slice(1,4).map(c=>`<span class="lg"><i style="background:${c}"></i></span>`).join('')+
       `<span class="lg"><i style="background:${CONFRAMP[4]}"></i>100 · fiable</span>`; return; }
   if(colorby==='traspaso'&&traspView==='transfer'&&TRANSFERFIN){ const n=c=>cap(c.ape1||c.nombre||'');
-    el.innerHTML=`<span class="lg" style="width:100%;font-weight:700;color:#333">Transferencia 1ª→2ª · quién lidera</span>`+
+    el.innerHTML=`<span class="lg lg-title">Transferencia 1ª→2ª · quién lidera</span>`+
       `<span class="lg"><i style="background:${TRANSFERFIN.col1}"></i>${n(TRANSFERFIN.c1)}</span>`+
       `<span class="lg"><i style="background:${TRANSFERFIN.col2}"></i>${n(TRANSFERFIN.c2)}</span>`+
       `<span class="lg" style="width:100%;color:#888;font-size:11px">Mueve el slider: 1ª = base ideológica · 2ª = resultado real</span>`; return; }
   if(colorby==='traspaso'&&traspView==='aumento'){ const r=rounds(elecSel); const T2=TERRCACHE[r.v2];
     const fin=T2?[...T2.candidatos].sort((a,b)=>b.vn-a.vn).slice(0,2):[];
-    el.innerHTML=`<span class="lg" style="width:100%;font-weight:700;color:#333">Aumento de votos 1ª→2ª por finalista</span>`+
+    el.innerHTML=`<span class="lg lg-title">Aumento de votos 1ª→2ª por finalista</span>`+
       fin.map(c=>`<span class="lg"><i style="background:${colOfCand(c)}"></i>${cap(c.ape1||c.nombre||'')}</span>`).join('')+
       `<span class="lg" style="width:100%;color:#888">2 barras por zona · altura ∝ % de aumento de sus votos · fondo = ganador 2ª</span>`; return; }
   if(colorby==='winner'||colorby==='traspaso'){ const used={}; Object.keys(TERR.local||TERR.comuna).length;

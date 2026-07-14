@@ -9,7 +9,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Source+Serif+4:opsz,wght@8..60,600;8..60,700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="tokens.css?v=67">
-<link rel="stylesheet" href="theme.css?v=78">
+<link rel="stylesheet" href="theme.css?v=79">
 </head>
 <body>
 <header id="apptop">
@@ -35,8 +35,20 @@
   <div class="sb-foot">
     <div>Fuente: <b>SERVEL</b> · resultados oficiales 2013–2025</div>
     <div class="sb-foot-sub">Actualizado jul-2026 · Recintos válidos desde nov-2021 · By <b>Rodrigo Medina González</b></div>
+    <button id="metBtn" class="met-link" type="button">Metodología y fuentes ›</button>
   </div>
 </aside>
+<div id="metModal" class="modal" hidden>
+  <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="metTitle">
+    <button class="modal-x" id="metClose" aria-label="Cerrar">×</button>
+    <h2 id="metTitle">Metodología y fuentes</h2>
+    <p><b>Fuente.</b> Resultados oficiales del Servicio Electoral (SERVEL), elecciones 2013–2025. Nivel comuna a partir de los cómputos oficiales; nivel recinto a partir de la votación mesa a mesa cuando está disponible.</p>
+    <p><b>Vista por recinto.</b> Solo válida desde la presidencial de nov-2021: antes de esa fecha el elector no votaba necesariamente cerca de su domicilio, por lo que el resultado de un recinto no representa a su entorno. Para años anteriores solo se ofrece nivel Comuna y superiores. La cobertura de recintos por elección se declara en el mapa.</p>
+    <p><b>Clasificación ideológica.</b> Cada bloque (izquierda → derecha radical) se asigna por partido/pacto según consenso politológico, con correcciones expertas por candidato. Los colores van a luminosidad uniforme para no favorecer a ninguna fuerza; el eje se codifica por matiz. Paleta alternativa para daltonismo disponible (botón ◐).</p>
+    <p><b>Cruce demográfico (género × edad).</b> Estimación por inferencia ecológica bayesiana espacial (modelo multinomial con prior espacial); las celdas se desaturan según la incertidumbre del intervalo de credibilidad.</p>
+    <p class="modal-foot">Autoría: <b>Rodrigo Medina González</b> · Universidad de Concepción.</p>
+  </div>
+</div>
 <main>
   <div id="content">
     <div id="subject" class="subject"></div>
@@ -77,6 +89,6 @@
   </div>
 </main>
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-<script src="explorador.js?v=78"></script>
+<script src="explorador.js?v=79"></script>
 </body>
 </html>
