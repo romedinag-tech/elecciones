@@ -1,5 +1,5 @@
 // Explorador territorial electoral — workbench: nivel → unidad → módulos. Elección elegida DENTRO de cada módulo.
-const V='87';
+const V='89';
 // ---- tema claro/oscuro ----
 try{ if(localStorage.getItem('elec_theme')==='dark') document.documentElement.setAttribute('data-theme','dark'); }catch(e){}
 function isDark(){ return document.documentElement.getAttribute('data-theme')==='dark'; }
@@ -73,6 +73,28 @@ let SEQ = isDark()?SEQ_DARK.slice():SEQ_LIGHT.slice();
 const REF_LBL='Presidencial 1ª v. 2025';
 
 let CAT={}, KPI={}, GEOCOM=null, GEOCOMP=null, AREAS=null, TIDX={}, CUTMAP={}, REPR={};
+let RACT=null, RACTCACHE={};  // recinto_activo.json: recintos activos por elección (unión de geografías)
+let PART={};  // participación por grupo (turnout = votantes/habilitados) por elección → {comuna,region,nacional}
+const REFPART='2025-11_presidencial_1v';   // elección de referencia para el panel Características
+function ensurePart(e){ if(PART[e]!==undefined) return Promise.resolve(PART[e]);
+  PART[e]=null; return fetch('data/participacion/'+e+'.json?v='+V).then(r=>r.ok?r.json():null).then(d=>{PART[e]=d;return d;}).catch(()=>{PART[e]=null;return null;}); }
+function partUnit(e){ const P=PART[e]; if(!P) return null;   // turnout de la unidad actual (comuna/region/nacional)
+  if(level==='nacional') return P.nacional;
+  if(level==='region')  return (P.region||{})[String(unitId)];
+  if(level==='comuna')  return (P.comuna||{})[String(unitId)];
+  return null; }  // distrito/circ/metro: aún sin rollup (bloque no se muestra)
+let PARTLOC=undefined, partMode='comuna';   // participación por RECINTO 2025 (modo fino) + modo activo del bloque
+function ensurePartLoc(){ if(PARTLOC!==undefined) return Promise.resolve(PARTLOC);
+  PARTLOC=null; return fetch('data/participacion_local_2025.json?v='+V).then(r=>r.ok?r.json():null).then(d=>{PARTLOC=d;return d;}).catch(()=>{PARTLOC=null;return null;}); }
+function setPartMode(m){ partMode=m; renderCbody(); }
+// Set de codigo_rec activos en la elección actual (o null = sin filtro: mostrar todos, p.ej. sin mapa de activos).
+function activeRecintos(){
+  if(!RACT||!RACT.elec2slug||!RACT.por_slug) return null;
+  const slug=RACT.elec2slug[elecSel]; if(!slug) return null;         // elección sin áreas oficiales → sin filtro
+  if(RACTCACHE[slug]) return RACTCACHE[slug];
+  const s=new Set((RACT.por_slug[slug]||[]).map(String));
+  return (RACTCACHE[slug]=s);
+}
 let CONFIDX={}; const CONF={};  // confiabilidad geográfica: índice (elecciones disponibles) + cache por elección
 let CROSSIDX={}; const CROSSB={};  // cruce bayesiano (EI espacial): índice + cache posterior por elección
 // rampa de confiabilidad 0-100: rojo(distorsión)→ámbar→verde(fiable). Distinta de la paleta política.
@@ -102,8 +124,9 @@ Promise.all([
   fetch('data/confiabilidad_index.json?v='+V).then(r=>r.json()).catch(()=>({})),
   fetch('data/cross_index.json?v='+V).then(r=>r.json()).catch(()=>({})),
   fetch('data/fotos/index.json?v='+V).then(r=>r.ok?r.json():{}).catch(()=>({})),  // retratos libres (Commons) por slug
-]).then(([cat,kpi,gcom,areas,gcomp,tidx,repr,confidx,crossidx,fotos])=>{
-  CAT=cat; KPI=kpi; GEOCOM=gcom; AREAS=areas; GEOCOMP=gcomp||gcom; TIDX=tidx; REPR=repr; CONFIDX=confidx||{}; CROSSIDX=crossidx||{}; FOTOMAP=fotos||{};
+  fetch('data/recinto_activo.json?v='+V).then(r=>r.ok?r.json():null).catch(()=>null),  // recintos activos por elección (unión) → filtra AREAS
+]).then(([cat,kpi,gcom,areas,gcomp,tidx,repr,confidx,crossidx,fotos,ract])=>{
+  CAT=cat; KPI=kpi; GEOCOM=gcom; AREAS=areas; GEOCOMP=gcomp||gcom; TIDX=tidx; REPR=repr; CONFIDX=confidx||{}; CROSSIDX=crossidx||{}; FOTOMAP=fotos||{}; RACT=ract||null;
   Object.entries(KPI.comuna).forEach(([cut,o])=>CUTMAP[cut]={reg:o.reg,dist:o.dist,circ:o.circ,metro:o.metro,nombre:o.nombre});
   elecSel=defaultElec();
   buildLevels(); buildMenu(); selectUnit('CL');
@@ -218,7 +241,29 @@ function fmtD(v,d){ return v==null?'—':v.toFixed(d??1); }
 function card(v,lbl,sub){ return `<div class="kc"><div class="kv">${v}</div><div class="kl">${lbl}</div>${sub?`<div class="ks">${sub}</div>`:''}</div>`; }
 function bars(items){ return `<div class="kbars">`+items.map(([lbl,pct,col])=>
   `<div class="kbar"><span class="kbl">${lbl}</span><span class="kbt"><i style="width:${Math.max(2,pct||0)}%;background:${col||'var(--accent)'}"></i></span><span class="kbp">${fmtP(pct,0)}</span></div>`).join('')+`</div>`; }
-function renderC(){ ensureTend().then(renderCbody); }
+function renderC(){ Promise.all([ensureTend(), ensurePart(REFPART), (level==='comuna'?ensurePartLoc():Promise.resolve())]).then(renderCbody); }
+const TCOL=v=>v==null?'#9aa0a6':(v>=85?'#2E7D6B':v>=75?'#6f9fd0':'#C55A11');
+// bloque de participación (turnout) por grupo demográfico. Modo Comuna (por grupo) / Recinto (2025, granularidad fina SAIP).
+function partGrupoBlock(){ const t=partUnit(REFPART); if(!t) return '';
+  const canLoc = level==='comuna' && PARTLOC && PARTLOC.local && AREAS;
+  const mode = (partMode==='recinto' && canLoc) ? 'recinto' : 'comuna';
+  const btn=(m,lbl)=>`<button onclick="setPartMode('${m}')" style="font:inherit;font-size:11px;padding:2px 9px;border-radius:11px;cursor:pointer;border:1px solid var(--line-2,#D6DEE9);margin-left:6px;${mode===m?'background:var(--navy,#16365a);color:#fff;border-color:transparent':'background:var(--surface,#fff);color:var(--ink-mid,#4A5A70)'}">${lbl}</button>`;
+  const tabs = canLoc ? btn('comuna','Comuna')+btn('recinto','Por recinto') : '';
+  let body;
+  if(mode==='recinto'){
+    const cut=+unitId, codes=new Set(AREAS.features.filter(f=>+f.properties.cut===cut).map(f=>String(f.properties.codigo_rec)));
+    const rows=Object.entries(PARTLOC.local).filter(([k])=>codes.has(k)).map(([k,v])=>[v.nom||('Recinto '+k),v.glob]).filter(r=>r[1]!=null).sort((a,b)=>b[1]-a[1]);
+    body = rows.length? `<div class="ksub">Participación por recinto (${rows.length} con dato) · pdte. 2025 1ª v.</div>`+
+      bars(rows.map(r=>[cap(r[0]).replace(/^(Colegio|Escuela|Liceo) /i,'').slice(0,32),r[1],TCOL(r[1])]))
+      : `<div class="ks">Sin datos por recinto para esta comuna (cobertura parcial del padrón por local).</div>`;
+  } else {
+    const ED=[['18–19','18-19'],['20–29','20-29'],['30–39','30-39'],['40–49','40-49'],['50–59','50-59'],['60–69','60-69'],['70–79','70-79'],['80+','80+']];
+    body = `<div class="ksub">Por tramo de edad (% de habilitados que votó)</div>`+bars(ED.map(([lbl,k])=>[lbl,(t.ed||{})[k],TCOL((t.ed||{})[k])]))+
+      `<div class="ksub">Por sexo</div>`+bars([['Mujeres',(t.sx||{}).M,'#7E57C2'],['Hombres',(t.sx||{}).H,'#4A80C0']])+
+      `<div class="ksub">Por nacionalidad</div>`+bars([['Chilenos',(t.na||{}).CHI,'#4A80C0'],['Extranjeros',(t.na||{}).EXT,'#C55A11']]);
+  }
+  return `<div class="kblock"><div class="kbt-h">Participación por grupo <span>· quién concurre a votar</span>${tabs}</div>${body}`+
+    `<div class="ks">Participación = votantes ÷ habilitados (padrón), por celda sexo×edad×nacionalidad. Mide <b>quién concurre</b>, no por quién vota (eso es el cruce). El detalle por recinto (2025) cubre las comunas con padrón por local matcheado.</div></div>`; }
 function partSpark(pts){ if(pts.length<1) return ''; const W=520,H=92,mL=32,mR=12,mT=10,mB=20,iw=W-mL-mR,ih=H-mT-mB;
   const vals=pts.map(p=>p.part).filter(v=>v!=null); if(!vals.length) return '<div class="ks">Sin datos.</div>';
   const lo=Math.max(0,Math.min(...vals)-8), hi=Math.min(100,Math.max(...vals)+8);
@@ -263,6 +308,7 @@ function renderCbody(){ const o=(KPI[level]||{})[unitId]; const p=document.getEl
      card(fmtP(o.pct_muj),'Mujeres','del electorado')+card(fmtP(o.pct_ext),'Extranjeros','electores no chilenos')+`</div>`+
      `<div class="ksub">Distribución etaria del electorado</div>`+bars([['18–29',o.pct_a1829,'#4A80C0'],['30–44',o.pct_a3044,'#6f9fd0'],['45–59',o.pct_a4559,'#9aa0a6'],['60+',o.pct_a60,'#C55A11']])+
      (o.pct_rural!=null?`<div class="ksub">Población urbana / rural (Censo 2024)</div>`+bars([['Urbana',100-o.pct_rural,'#4A80C0'],['Rural',o.pct_rural,'#3F8E86']]):'')+`</div>`;
+  h+=partGrupoBlock();   // participación (turnout) por grupo demográfico — capacidad nueva (padrón habilitado SAIP)
   h+=`<div class="kblock"><div class="kbt-h">Demografía y territorio <span>· Censo 2024</span></div><div class="kgrid">`+
      card(fmtN(o.pob_2024),'Población',o.var_pct!=null?`${o.var_pct>0?'+':''}${fmtD(o.var_pct)}% vs 2017`:'')+
      card(fmtD(o.dens_hab_ha),'Densidad','hab/ha')+card(fmtP(o.pct_60mas),'60 años y más','población')+card(fmtP(o.pct_inmig),'Inmigrantes','población')+`</div></div>`;
@@ -429,7 +475,9 @@ function effGran(){ let g=clampGran(granul);   // clamp por alcance (render siem
 function granName(geo){ return geo==='manzana'?'manzanas':geo==='local'?'locales':geo==='distrito'?'distritos':geo==='region'?'regiones':'comunas'; }
 function terrSub(){ const cuts=unitCuts(); const g=effGran();
   if(g==='manzana'||g==='manzana_est'){ const mz=MANZ[unitId]; return {geo:'manzana', idp:'codigo_rec', data:TERR.local, feats:mz?mz.features:[]}; }
-  if(g==='poligono') return {geo:'local', idp:'codigo_rec', data:TERR.local, feats:AREAS.features.filter(f=>!cuts||cuts.has(+f.properties.cut))};
+  if(g==='poligono'){ const act=activeRecintos();  // unión de geografías: mostrar solo recintos activos en esta elección
+    return {geo:'local', idp:'codigo_rec', data:TERR.local,
+      feats:AREAS.features.filter(f=>(!cuts||cuts.has(+f.properties.cut)) && (!act||act.has(String(f.properties.codigo_rec))))}; }
   if(g==='comuna') return {geo:'comuna', idp:'cut', data:TERR.comuna, feats:GEOCOMP.features.filter(f=>!cuts||cuts.has(+f.properties.cut))};
   if(g==='distrito'){ const data=aggToLevel('dist'); return {geo:'distrito', idp:'distrito_num', data, feats:(GEOMS.distrito?GEOMS.distrito.features:[]).filter(f=>data[f.properties.distrito_num]!=null)}; }
   const data=aggToLevel('reg'); return {geo:'region', idp:'nro_region', data, feats:(GEOMS.region?GEOMS.region.features:[]).filter(f=>data[f.properties.nro_region]!=null)}; }

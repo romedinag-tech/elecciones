@@ -1,0 +1,200 @@
+{
+"2013-11_cores": {
+"label": "2013-11_cores",
+"padron": "2013-11",
+"obl": false,
+"glob": 49.1
+},
+"2013-11_diputados": {
+"label": "2013-11_diputados",
+"padron": "2013-11",
+"obl": false,
+"glob": 49.1
+},
+"2013-11_presidencial_1v": {
+"label": "2013-11_presidencial_1v",
+"padron": "2013-11",
+"obl": false,
+"glob": 49.1
+},
+"2013-11_senadores": {
+"label": "2013-11_senadores",
+"padron": "2013-11",
+"obl": false,
+"glob": 49.4
+},
+"2013-12_presidencial_2v": {
+"label": "2013-12_presidencial_2v",
+"padron": "2013-11",
+"obl": false,
+"glob": 41.9
+},
+"2016-10_alcaldes": {
+"label": "2016-10_alcaldes",
+"padron": "2016-10",
+"obl": false,
+"glob": 34.8
+},
+"2016-10_concejales": {
+"label": "2016-10_concejales",
+"padron": "2016-10",
+"obl": false,
+"glob": 34.8
+},
+"2017-11_cores": {
+"label": "2017-11_cores",
+"padron": "2017-11",
+"obl": false,
+"glob": 46.6
+},
+"2017-11_diputados": {
+"label": "2017-11_diputados",
+"padron": "2017-11",
+"obl": false,
+"glob": 46.7
+},
+"2017-11_presidencial_1v": {
+"label": "2017-11_presidencial_1v",
+"padron": "2017-11",
+"obl": false,
+"glob": 46.7
+},
+"2017-11_senadores": {
+"label": "2017-11_senadores",
+"padron": "2017-11",
+"obl": false,
+"glob": 45.5
+},
+"2017-12_presidencial_2v": {
+"label": "2017-12_presidencial_2v",
+"padron": "2017-11",
+"obl": false,
+"glob": 49.0
+},
+"2021-05_alcaldes": {
+"label": "2021-05_alcaldes",
+"padron": "2021-05",
+"obl": false,
+"glob": 43.3
+},
+"2021-05_concejales": {
+"label": "2021-05_concejales",
+"padron": "2021-05",
+"obl": false,
+"glob": 43.3
+},
+"2021-05_convencion_generales": {
+"label": "2021-05_convencion_generales",
+"padron": "2021-05",
+"obl": false,
+"glob": 41.5
+},
+"2021-05_gobernadores_1v": {
+"label": "2021-05_gobernadores_1v",
+"padron": "2021-05",
+"obl": false,
+"glob": 43.3
+},
+"2021-06_gobernadores_2v": {
+"label": "2021-06_gobernadores_2v",
+"padron": "2021-05",
+"obl": false,
+"glob": 19.6
+},
+"2021-11_cores": {
+"label": "2021-11_cores",
+"padron": "2021-11",
+"obl": false,
+"glob": 47.3
+},
+"2021-11_diputados": {
+"label": "2021-11_diputados",
+"padron": "2021-11",
+"obl": false,
+"glob": 47.3
+},
+"2021-11_presidencial_1v": {
+"label": "2021-11_presidencial_1v",
+"padron": "2021-11",
+"obl": false,
+"glob": 47.3
+},
+"2021-11_senadores": {
+"label": "2021-11_senadores",
+"padron": "2021-11",
+"obl": false,
+"glob": 46.4
+},
+"2021-12_presidencial_2v": {
+"label": "2021-12_presidencial_2v",
+"padron": "2021-11",
+"obl": false,
+"glob": 55.6
+},
+"2022-09_plebiscito_salida": {
+"label": "2022-09_plebiscito_salida",
+"padron": "2022-09",
+"obl": true,
+"glob": 86.0
+},
+"2023-05_consejo_generales": {
+"label": "2023-05_consejo_generales",
+"padron": "2023-05",
+"obl": true,
+"glob": 82.5
+},
+"2023-12_plebiscito": {
+"label": "2023-12_plebiscito",
+"padron": "2023-12",
+"obl": true,
+"glob": 85.0
+},
+"2024-10_alcaldes": {
+"label": "2024-10_alcaldes",
+"padron": "2024-10",
+"obl": true,
+"glob": 85.0
+},
+"2024-10_gobernadores_1v": {
+"label": "2024-10_gobernadores_1v",
+"padron": "2024-10",
+"obl": true,
+"glob": 85.0
+},
+"2024-11_gobernadores_2v": {
+"label": "2024-11_gobernadores_2v",
+"padron": "2024-10",
+"obl": true,
+"glob": 83.4
+},
+"2025-06_primarias": {
+"label": "2025-06_primarias",
+"padron": "2024-10",
+"obl": false,
+"glob": 9.1
+},
+"2025-11_diputados": {
+"label": "2025-11_diputados",
+"padron": "2025-11",
+"obl": true,
+"glob": 85.9
+},
+"2025-11_presidencial_1v": {
+"label": "2025-11_presidencial_1v",
+"padron": "2025-11",
+"obl": true,
+"glob": 85.9
+},
+"2025-11_senadores": {
+"label": "2025-11_senadores",
+"padron": "2025-11",
+"obl": true,
+"glob": 85.6
+},
+"2025-12_presidencial_2v": {
+"label": "2025-12_presidencial_2v",
+"padron": "2025-11",
+"obl": true,
+"glob": 85.6
+}
+}
