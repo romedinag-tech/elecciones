@@ -1,0 +1,29 @@
+{
+ "bloques": {
+  "Izq": "Izquierda",
+  "Centro": "Centro",
+  "Der": "Derecha",
+  "Populista": "Populista/Otro"
+ },
+ "colores": {
+  "Izq": "#e2504a",
+  "Centro": "#f0a830",
+  "Der": "#3b6fb0",
+  "Populista": "#7a5aa8",
+  "insuf": "#8a8f98"
+ },
+ "tipologia": {
+  "Bastión": "Piso alto y estable — voto duro dominante",
+  "Basculante": "Se está realineando (2021→2025)",
+  "Bisagra": "Parejo y volátil — se define la elección",
+  "Mixto": "Sin patrón dominante",
+  "Datos insuficientes": "<4 elecciones de 1ª vuelta"
+ },
+ "vistas": {
+  "duro": "Voto duro: bloque dominante e intensidad = piso",
+  "tipologia": "Tipología del recinto/comuna",
+  "realin": "Realineamiento neto 2021→2025 (+ = se derechiza)",
+  "prima": "Prima personal del alcalde electo sobre el piso de su bloque"
+ },
+ "nota": "Piso/bastión: presidencial+parlamentaria+gobernador. Realineamiento: solo presidencial+parlamentaria (señal limpia)."
+}
