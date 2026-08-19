@@ -1,5 +1,5 @@
 // Explorador territorial electoral — workbench: nivel → unidad → módulos. Elección elegida DENTRO de cada módulo.
-const V='91';
+const V='92';
 // ---- tema claro/oscuro ----
 try{ if(localStorage.getItem('elec_theme')==='dark') document.documentElement.setAttribute('data-theme','dark'); }catch(e){}
 function isDark(){ return document.documentElement.getAttribute('data-theme')==='dark'; }
@@ -112,7 +112,7 @@ let level='nacional', unitId=null, tab='C', elecSel=null, colorby='winner', gran
 let mapFitKey=null; const GEOMS={}; let climitsLayer=null;
 let TERR=null; const TERRCACHE={};
 let map=null, layer=null, canvas=null, seqRange=null;
-let E7COM=null, E7REC=null;  // E7 · estructura del voto (voto duro/volátil, agregado 2021-2025)
+let E7COM=null, E7REC=null, e7Cand=null;  // E7 · estructura del voto; e7Cand = candidato elegido en "Voto duro" (null = bloque dominante)
 
 Promise.all([
   fetch('data/catalogo_elecciones.json?v='+V).then(r=>r.json()),
@@ -380,12 +380,14 @@ function buildIndics(){ const box=document.getElementById('indics'); box.innerHT
   indicList().forEach(I=>{ const b=document.createElement('button'); b.className='ind-btn'+(I.soon?' soon':''); b.textContent=I.lbl+(I.soon?' ·':'');
     if(I.soon){ b.disabled=true; b.title='Llega desde Análisis tendencial (próximamente)'; box.appendChild(b); return; }
     if(I.k==='cand'?colorby.startsWith('cand:'):colorby===I.k) b.classList.add('on');
-    b.onclick=()=>{ if(I.k==='cand'){ colorby='cand:'+candselVal(); showCandsel(true); } else { colorby=I.k; showCandsel(false); } buildIndics(); renderT(); };
+    b.onclick=()=>{ if(I.k==='cand'){ colorby='cand:'+candselVal(); showCandsel(true); } else { colorby=I.k; const sc=(I.k==='e7duro'); showCandsel(sc); if(sc) buildCandsel(); } buildIndics(); renderT(); };
     box.appendChild(b); });
-  showCandsel(colorby.startsWith('cand:')); }
-function candselVal(){ const s=document.getElementById('candsel'); return s&&s.value?+s.value.slice(5):0; }
-function showCandsel(on){ const s=document.getElementById('candsel'); s.style.display=on?'':'none'; if(on) s.value=colorby.startsWith('cand:')?colorby:'cand:0'; }
+  showCandsel(colorby.startsWith('cand:')||colorby==='e7duro'); }
+function candselVal(){ const s=document.getElementById('candsel'); const v=s&&s.value; return (v&&v.startsWith('cand:'))?+v.slice(5):0; }
+function showCandsel(on){ const s=document.getElementById('candsel'); s.style.display=on?'':'none';
+  if(on) s.value = colorby==='e7duro' ? (e7Cand==null?'dom':'cand:'+e7Cand) : (colorby.startsWith('cand:')?colorby:'cand:0'); }
 function buildCandsel(){ const s=document.getElementById('candsel'); s.innerHTML='';
+  if(colorby==='e7duro'){ const o=document.createElement('option'); o.value='dom'; o.textContent='Bloque dominante'; s.appendChild(o); }  // "Voto duro" sin candidato
   // candidatos COHERENTES con la unidad: solo los que tienen votos en ella (clave en gobernadores/diputados, carrera por región/distrito)
   const cuts=unitCuts(); const agg={};
   for(const cut in TERR.comuna){ if(cuts&&!cuts.has(+cut)) continue; const v=TERR.comuna[cut].v; for(const i in v) agg[i]=(agg[i]||0)+v[i]; }
@@ -394,7 +396,8 @@ function buildCandsel(){ const s=document.getElementById('candsel'); s.innerHTML
   idxs.slice(0,30).forEach(i=>{ const c=TERR.candidatos[i]; if(!c) return; const o=document.createElement('option'); o.value='cand:'+i; o.textContent=cap(c.nombre); s.appendChild(o); });
   // si el candidato coloreado actual no está en la unidad, resetea al más votado de ella
   if(colorby.startsWith('cand:') && !idxs.includes(+colorby.slice(5))) colorby='cand:'+idxs[0];
-  s.onchange=e=>{ colorby=e.target.value; buildIndics(); renderT(); }; }
+  if(colorby==='e7duro'){ if(e7Cand!=null && !idxs.includes(e7Cand)) e7Cand=null; s.value = e7Cand==null?'dom':'cand:'+e7Cand; }
+  s.onchange=e=>{ if(colorby==='e7duro'){ e7Cand = e.target.value==='dom'?null:+e.target.value.slice(5); } else { colorby=e.target.value; } buildIndics(); renderT(); }; }
 const MANZ={};  // cache de geojson de manzanas por cut
 function ensureManz(cut){ if(MANZ[cut]!==undefined) return Promise.resolve();
   return fetch('data/manzanas/'+cut+'.geojson?v='+V).then(r=>r.ok?r.json():null).then(d=>{MANZ[cut]=d;}).catch(()=>{MANZ[cut]=null;}); }
@@ -526,10 +529,14 @@ function colorFeat(u,f){ if(colorby&&colorby.indexOf('e7')===0) return e7Col(f);
     if(traspView==='transfer'&&eg!=='distrito'&&eg!=='region') return transferCol(f,transferT);
     const w=winnerOf(u); return w?candCol(w.i):'#e5e5e5'; }  // vista Ganador y Aumento usan el ganador de fondo
   if(colorby==='winner'){ const w=winnerOf(u); return w?candCol(w.i):'#e5e5e5'; }
+  if(colorby==='margen'){ const v=metricVal(u); return v==null?'#e5e5e5':seqCol(seqRange&&seqRange.hi!=null?(seqRange.hi+seqRange.lo-v):v); }  // competitividad: invertida → margen chico (reñido) = más intenso
   return seqCol(metricVal(u)); }
 
 // ===== E7 · Estructura del voto (voto duro/volátil, agregado 2021-2025; NO depende de la elección seleccionada) =====
 const E7BL={Izq:'Izquierda',Centro:'Centro',Der:'Derecha',Populista:'Populista/Otro'};
+// bloque fino (del candidato en TERR) → bloque3 de E7
+const E7BL3={'Izquierda':'Izq','Centro-izquierda':'Izq','Centro':'Centro','Centro-derecha':'Der','Derecha':'Der','Derecha radical':'Der','Populista/Otro':'Populista'};
+function e7CandB3(){ if(e7Cand==null||!TERR||!TERR.candidatos||!TERR.candidatos[e7Cand]) return null; return E7BL3[(TERR.candidatos[e7Cand].bloque)||'']||null; }
 const E7TIPCOL={'Bastión':'#2c6e49','Basculante':'#e76f51','Bisagra':'#e9c46a','Mixto':'#8d99ae','Datos insuficientes':'#cbced4','insuf':'#cbced4'};
 function e7Unit(f){ return effGran()==='poligono' ? (E7REC&&E7REC[String(f.properties.codigo_rec)]) : (E7COM&&E7COM[String(f.properties.cut)]); }
 function e7ComTip(d){ if(!d||!d.tip) return null; let bk=null,bv=-1; for(const k in d.tip){ if(d.tip[k]>bv){bv=d.tip[k];bk=k;} } return bv>0?bk:null; }
@@ -539,8 +546,11 @@ function e7Div(v,neg,pos,hi){ if(v==null) return '#e5e5e5'; const t=Math.max(-1,
   const R=parseInt(c.slice(1,3),16),G=parseInt(c.slice(3,5),16),B=parseInt(c.slice(5,7),16), w=Math.abs(t);
   return `rgb(${Math.round(242+(R-242)*w)},${Math.round(243+(G-243)*w)},${Math.round(245+(B-245)*w)})`; }
 function e7Col(f){ const d=e7Unit(f); if(!d) return '#e5e5e5'; const isRec=effGran()==='poligono';
-  if(colorby==='e7duro'){ if(!d.dom) return '#cbced4'; const base=BLOQCOL[E7BL[d.dom]]||'#8a8f98';
-    return e7White(base, 0.35+0.65*Math.max(0,Math.min(1,((d.piso||0)-0.30)/0.45))); }   // hue = bloque, intensidad = piso
+  if(colorby==='e7duro'){ const b3=e7CandB3();
+    if(b3){ const piso=d.b?d.b[b3]:null; if(piso==null) return '#e5e5e5';           // candidato elegido: 1 matiz (su bloque), claro→oscuro por piso
+      return e7White(BLOQCOL[E7BL[b3]]||'#8a8f98', 0.14+0.86*Math.max(0,Math.min(1,piso/0.6))); }
+    if(!d.dom) return '#cbced4'; const base=BLOQCOL[E7BL[d.dom]]||'#8a8f98';           // por defecto: bloque dominante + intensidad por piso
+    return e7White(base, 0.35+0.65*Math.max(0,Math.min(1,((d.piso||0)-0.30)/0.45))); }
   if(colorby==='e7tip'){ const t=isRec?d.tip:e7ComTip(d); return E7TIPCOL[t]||'#cbced4'; }
   if(colorby==='e7realin') return e7Div(d.realin,'#DB8076','#8297DE',0.30);               // + = se derechiza (azul) · − = se izquierdiza (rojo)
   if(colorby==='e7prima'){ const p=d.prima; return (!p||p.prima==null)?'#cbced4':e7Div(p.prima,'#C55A11','#2c6e49',0.40); }
@@ -551,16 +561,32 @@ function e7Popup(f){ const d=e7Unit(f); const isRec=effGran()==='poligono';
     const p=d&&d.prima; if(!p) return '<span style="color:#888">alcalde sin clasificar (independiente)</span>';
     return `Alcalde: <b>${p.cand}</b> (${E7BL[p.b3]||p.b3})<br>Votación <b>${pct(p.share)}</b> · piso del bloque ${pct(p.piso)}<br>Prima personal: <b>${spp(p.prima)}</b>`; }
   if(!d||(!d.dom&&isRec)) return '<span style="color:#888">datos insuficientes (&lt;4 elecciones)</span>';
-  let h=`Bloque dominante: <b>${E7BL[d.dom]||'—'}</b> · piso <b>${pct(d.piso)}</b><br>`;
+  const glosaTip=t=> t==='Basculante'?' <span style="color:#888">(se realinea hacia un lado)</span>'
+    : t==='Bisagra'?' <span style="color:#888">(parejo y en disputa, sin dirección)</span>'
+    : t==='Bastión'?' <span style="color:#888">(piso alto y estable)</span>':'';
+  let h='';
+  const b3=(colorby==='e7duro')?e7CandB3():null;   // voto duro con candidato elegido: encabezar con SU piso
+  if(b3){ const nm=cap((TERR.candidatos[e7Cand]||{}).nombre||''); const piso=d.b?d.b[b3]:null;
+    h+=`Voto duro de <b>${nm}</b> (${E7BL[b3]}): piso <b>${pct(piso)}</b><br><span style="color:#888">— </span>`; }
+  h+=`Bloque dominante: <b>${E7BL[d.dom]||'—'}</b> · piso <b>${pct(d.piso)}</b><br>`;
   h+=`Realineamiento 2021→2025: <b>${spp(d.realin)}</b> ${d.realin>0?'(a la derecha)':d.realin<0?'(a la izquierda)':''}<br>`;
-  h+= isRec ? `Tipología: <b>${d.tip}</b>${d.ancla?'':' · sin ancla 2021'}` : `Tipología dominante: <b>${e7ComTip(d)||'—'}</b> · ${d.nrec} recintos`;
+  const tip=isRec?d.tip:e7ComTip(d);
+  h+= isRec ? `Tipología: <b>${tip}</b>${glosaTip(tip)}${d.ancla?'':' · sin ancla 2021'}` : `Tipología dominante: <b>${tip||'—'}</b>${glosaTip(tip)} · ${d.nrec} recintos`;
   return h; }
 function e7Leg(){
-  if(colorby==='e7duro') return '<span class="lg lg-title">Voto duro · bloque + piso (2021-2025)</span>'+
-    Object.keys(E7BL).map(k=>`<span class="lg"><i style="background:${BLOQCOL[E7BL[k]]}"></i>${E7BL[k]}</span>`).join('')+
-    '<span class="lg lg-dir">más intenso = piso más alto</span>';
+  if(colorby==='e7duro'){ const b3=e7CandB3();
+    if(b3){ const base=BLOQCOL[E7BL[b3]]||'#8a8f98';   // candidato elegido → rampa de un solo matiz (piso de su bloque)
+      return `<span class="lg lg-title">Voto duro · ${E7BL[b3]} (piso del sector)</span>`+
+        `<span class="lg"><i style="background:${e7White(base,0.16)}"></i>bajo</span>`+
+        `<span class="lg"><i style="background:${e7White(base,0.55)}"></i></span>`+
+        `<span class="lg"><i style="background:${e7White(base,1)}"></i>alto</span>`+
+        '<span class="lg lg-dir">más oscuro = piso más alto</span>'; }
+    return '<span class="lg lg-title">Voto duro · bloque dominante</span>'+
+      Object.keys(E7BL).map(k=>`<span class="lg"><i style="background:${BLOQCOL[E7BL[k]]}"></i>${E7BL[k]}</span>`).join('')+
+      '<span class="lg lg-dir">elige un candidato ▸ para ver el piso de su sector a un solo color</span>'; }
   if(colorby==='e7tip') return '<span class="lg lg-title">Tipología del voto</span>'+
-    ['Bastión','Basculante','Bisagra','Mixto','Datos insuficientes'].map(k=>`<span class="lg"><i style="background:${E7TIPCOL[k]}"></i>${k}</span>`).join('');
+    [['Bastión','alto y estable'],['Basculante','se realinea hacia un lado'],['Bisagra','parejo y en disputa'],['Mixto','sin patrón'],['Datos insuficientes','']]
+      .map(([k,g])=>`<span class="lg"><i style="background:${E7TIPCOL[k]}"></i>${k}${g?' · '+g:''}</span>`).join('');
   if(colorby==='e7realin') return '<span class="lg lg-title">Realineamiento 2021→2025</span>'+
     '<span class="lg"><i style="background:#DB8076"></i>← se izquierdiza</span><span class="lg"><i style="background:#f2f3f5;border:1px solid #ccc"></i>estable</span><span class="lg"><i style="background:#8297DE"></i>se derechiza →</span>';
   return '<span class="lg lg-title">Prima del alcalde electo (2024)</span>'+
@@ -1185,7 +1211,7 @@ function renderSummary(geo,feats,idp,data){ const o=(KPI[level]||{})[unitId]||{}
   h+=`</div><div class="sz-note" style="margin-top:10px">Elige <b>Participación</b>, <b>un candidato</b> o <b>Blancos+nulos</b> para estimar los sesgos demográficos por grupo.</div></div>`;
   document.getElementById('terrside').innerHTML=h; }
 function colLabel(){ if(colorby==='winner') return 'ganador'; if(colorby==='part') return 'participación';
-  if(colorby==='margen') return 'competitividad (margen 1º–2º lugar)'; if(colorby==='nulos') return 'blancos + nulos';
+  if(colorby==='margen') return 'competitividad · qué tan reñida (margen entre 1º y 2º lugar)'; if(colorby==='nulos') return 'blancos + nulos';
   if(colorby==='consist') return 'consistencia 1ª/2ª vuelta';
   if(colorby==='swing') return 'swing vs '+(DIVREF?elecInfo(DIVREF).year:'anterior');
   if(colorby==='split') return 'voto cruzado vs '+(DIVREF?cap(elecInfo(DIVREF).label):'—');
@@ -1214,6 +1240,12 @@ function renderResumen(geo,n){ const o=(KPI[level]||{})[unitId]||{};
     `${n} ${granName(geo)} · coloreado por <b>${colLabel()}</b>.`+extra; }
 function renderLeg(){ const el=document.getElementById('leg2');
   if(colorby&&colorby.indexOf('e7')===0){ el.innerHTML=e7Leg(); return; }
+  if(colorby==='margen'){
+    el.innerHTML='<span class="lg lg-title">Competitividad · qué tan reñido (margen 1º–2º lugar)</span>'+
+      `<span class="lg"><i style="background:${SEQ[4]}"></i>reñido</span>`+
+      `<span class="lg"><i style="background:${SEQ[3]}"></i></span><span class="lg"><i style="background:${SEQ[1]}"></i></span>`+
+      `<span class="lg"><i style="background:${SEQ[0]}"></i>holgado</span>`+
+      '<span class="lg lg-dir">más intenso = margen más chico = elección más peleada</span>'; return; }
   if(colorby==='consist'){ el.innerHTML=`<span class="lg lg-title">Consistencia 1ª/2ª vuelta</span>`+
       `<span class="lg"><i style="background:#3F8E86"></i>mismo bloque</span><span class="lg"><i style="background:#C55A11"></i>cambió de bloque</span>`; return; }
   if(colorby==='swing'||colorby==='split'){ const m=(seqRange&&seqRange.abs)||10;
