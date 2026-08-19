@@ -1,5 +1,5 @@
 // Explorador territorial electoral — workbench: nivel → unidad → módulos. Elección elegida DENTRO de cada módulo.
-const V='89';
+const V='90';
 // ---- tema claro/oscuro ----
 try{ if(localStorage.getItem('elec_theme')==='dark') document.documentElement.setAttribute('data-theme','dark'); }catch(e){}
 function isDark(){ return document.documentElement.getAttribute('data-theme')==='dark'; }
@@ -112,6 +112,7 @@ let level='nacional', unitId=null, tab='C', elecSel=null, colorby='winner', gran
 let mapFitKey=null; const GEOMS={}; let climitsLayer=null;
 let TERR=null; const TERRCACHE={};
 let map=null, layer=null, canvas=null, seqRange=null;
+let E7COM=null, E7REC=null;  // E7 · estructura del voto (voto duro/volátil, agregado 2021-2025)
 
 Promise.all([
   fetch('data/catalogo_elecciones.json?v='+V).then(r=>r.json()),
@@ -125,8 +126,10 @@ Promise.all([
   fetch('data/cross_index.json?v='+V).then(r=>r.json()).catch(()=>({})),
   fetch('data/fotos/index.json?v='+V).then(r=>r.ok?r.json():{}).catch(()=>({})),  // retratos libres (Commons) por slug
   fetch('data/recinto_activo.json?v='+V).then(r=>r.ok?r.json():null).catch(()=>null),  // recintos activos por elección (unión) → filtra AREAS
-]).then(([cat,kpi,gcom,areas,gcomp,tidx,repr,confidx,crossidx,fotos,ract])=>{
-  CAT=cat; KPI=kpi; GEOCOM=gcom; AREAS=areas; GEOCOMP=gcomp||gcom; TIDX=tidx; REPR=repr; CONFIDX=confidx||{}; CROSSIDX=crossidx||{}; FOTOMAP=fotos||{}; RACT=ract||null;
+  fetch('data/e7/comuna.json?v='+V).then(r=>r.ok?r.json():null).catch(()=>null),   // E7 estructura del voto — comuna (agregado 2021-2025)
+  fetch('data/e7/recinto.json?v='+V).then(r=>r.ok?r.json():null).catch(()=>null),  // E7 estructura del voto — recinto
+]).then(([cat,kpi,gcom,areas,gcomp,tidx,repr,confidx,crossidx,fotos,ract,e7com,e7rec])=>{
+  CAT=cat; KPI=kpi; GEOCOM=gcom; AREAS=areas; GEOCOMP=gcomp||gcom; TIDX=tidx; REPR=repr; CONFIDX=confidx||{}; CROSSIDX=crossidx||{}; FOTOMAP=fotos||{}; RACT=ract||null; E7COM=e7com||null; E7REC=e7rec||null;
   Object.entries(KPI.comuna).forEach(([cut,o])=>CUTMAP[cut]={reg:o.reg,dist:o.dist,circ:o.circ,metro:o.metro,nombre:o.nombre});
   elecSel=defaultElec();
   buildLevels(); buildMenu(); selectUnit('CL');
@@ -366,9 +369,12 @@ function indicList(){ const L=[{k:'winner',lbl:'Ganador'},{k:'part',lbl:'Partici
   // Swing y Voto cruzado MOVIDOS a Análisis tendencial (spec 2026-07-12). 'consist' retirado antes.
   if(hasRounds(elecSel)) L.push({k:'traspaso',lbl:'Traspaso de votos'});
   if(CONFIDX[elecSel]) L.push({k:'conf',lbl:'Confiabilidad geog.'});  // padrón vs residentes censales (solo elecciones cercanas al Censo 2024)
-  L.push({k:'vdc',lbl:'Voto duro/coalición',soon:1});  // llega desde Tendencial → placeholder deshabilitado
+  // E7 · Estructura del voto (agregado 2021-2025, no depende de la elección). Solo si los datos cargaron.
+  if(E7COM){ L.push({k:'e7duro',lbl:'Voto duro'}); L.push({k:'e7tip',lbl:'Tipología'});
+    L.push({k:'e7realin',lbl:'Realineamiento'}); L.push({k:'e7prima',lbl:'Prima de candidato'}); }
   return L; }
-function validColorby(){ const s=new Set(['winner','part','nulos','margen']); if(hasRounds(elecSel))s.add('traspaso'); if(CONFIDX[elecSel])s.add('conf'); return s; }
+function validColorby(){ const s=new Set(['winner','part','nulos','margen']); if(hasRounds(elecSel))s.add('traspaso'); if(CONFIDX[elecSel])s.add('conf');
+  if(E7COM){ s.add('e7duro'); s.add('e7tip'); s.add('e7realin'); s.add('e7prima'); } return s; }
 function buildIndics(){ const box=document.getElementById('indics'); box.innerHTML='';
   if(!(colorby.startsWith('cand:')||validColorby().has(colorby))) colorby='winner';
   indicList().forEach(I=>{ const b=document.createElement('button'); b.className='ind-btn'+(I.soon?' soon':''); b.textContent=I.lbl+(I.soon?' ·':'');
@@ -467,6 +473,7 @@ function aggToLevel(kind){ const cuts=unitCuts(); const out={}; const key=kind==
     const em=u.val+(u.nb||0); o.emit+=em; if(u.part) o.ins+=em/(u.part/100); }
   for(const g in out){ const o=out[g]; o.part=o.ins?Math.round(1000*o.emit/o.ins)/10:null; } return out; }
 function effGran(){ let g=clampGran(granul);   // clamp por alcance (render siempre coherente aunque el dropdown quede stale)
+  if(colorby&&colorby.indexOf('e7')===0){ if(!(g==='comuna'||g==='poligono')) g='comuna'; if(colorby==='e7prima') g='comuna'; }  // E7: solo comuna/recinto; prima solo comuna
   if(colorby==='swing'||colorby==='split') g='comuna';
   if(colorby==='consist'&&(g==='distrito'||g==='region')) g='comuna';
   if((g==='manzana'||g==='manzana_est')&&(level!=='comuna'||!hasLocal())) g='poligono';  // manzana solo a nivel comuna
@@ -475,7 +482,7 @@ function effGran(){ let g=clampGran(granul);   // clamp por alcance (render siem
 function granName(geo){ return geo==='manzana'?'manzanas':geo==='local'?'locales':geo==='distrito'?'distritos':geo==='region'?'regiones':'comunas'; }
 function terrSub(){ const cuts=unitCuts(); const g=effGran();
   if(g==='manzana'||g==='manzana_est'){ const mz=MANZ[unitId]; return {geo:'manzana', idp:'codigo_rec', data:TERR.local, feats:mz?mz.features:[]}; }
-  if(g==='poligono'){ const act=activeRecintos();  // unión de geografías: mostrar solo recintos activos en esta elección
+  if(g==='poligono'){ const isE7=colorby&&colorby.indexOf('e7')===0; const act=isE7?null:activeRecintos();  // E7 no depende de la elección → todos los recintos con dato; resto: solo activos en la elección
     return {geo:'local', idp:'codigo_rec', data:TERR.local,
       feats:AREAS.features.filter(f=>(!cuts||cuts.has(+f.properties.cut)) && (!act||act.has(String(f.properties.codigo_rec))))}; }
   if(g==='comuna') return {geo:'comuna', idp:'cut', data:TERR.comuna, feats:GEOCOMP.features.filter(f=>!cuts||cuts.has(+f.properties.cut))};
@@ -510,7 +517,8 @@ function pctl(a,p){ if(!a.length) return null; const s=[...a].sort((x,y)=>x-y); 
 function seqCol(v){ if(v==null) return '#e5e5e5'; const r=seqRange; if(!r||r.hi===r.lo) return SEQ[2];
   const t=Math.max(0,Math.min(1,(v-r.lo)/(r.hi-r.lo))); return SEQ[Math.min(4,Math.floor(t*5))]; }
 function idOf(f){ return f.properties.codigo_rec!=null?f.properties.codigo_rec:f.properties.cut; }
-function colorFeat(u,f){ if(colorby==='conf') return confCol(confVal(f));
+function colorFeat(u,f){ if(colorby&&colorby.indexOf('e7')===0) return e7Col(f);
+  if(colorby==='conf') return confCol(confVal(f));
   if(effGran()==='manzana_est'){ const v=MANZIMP[f.properties.manzent]; return v==null?'#e5e5e5':seqCol(v); }
   if(colorby==='consist') return consistCol(CONSIST[String(idOf(f))]);
   if(colorby==='swing'||colorby==='split') return divCol(DIVMAP[+f.properties.cut]);
@@ -519,6 +527,45 @@ function colorFeat(u,f){ if(colorby==='conf') return confCol(confVal(f));
     const w=winnerOf(u); return w?candCol(w.i):'#e5e5e5'; }  // vista Ganador y Aumento usan el ganador de fondo
   if(colorby==='winner'){ const w=winnerOf(u); return w?candCol(w.i):'#e5e5e5'; }
   return seqCol(metricVal(u)); }
+
+// ===== E7 · Estructura del voto (voto duro/volátil, agregado 2021-2025; NO depende de la elección seleccionada) =====
+const E7BL={Izq:'Izquierda',Centro:'Centro',Der:'Derecha',Populista:'Populista/Otro'};
+const E7TIPCOL={'Bastión':'#2c6e49','Basculante':'#e76f51','Bisagra':'#e9c46a','Mixto':'#8d99ae','Datos insuficientes':'#cbced4','insuf':'#cbced4'};
+function e7Unit(f){ return effGran()==='poligono' ? (E7REC&&E7REC[String(f.properties.codigo_rec)]) : (E7COM&&E7COM[String(f.properties.cut)]); }
+function e7ComTip(d){ if(!d||!d.tip) return null; let bk=null,bv=-1; for(const k in d.tip){ if(d.tip[k]>bv){bv=d.tip[k];bk=k;} } return bv>0?bk:null; }
+function e7White(hex,t){ const R=parseInt(hex.slice(1,3),16),G=parseInt(hex.slice(3,5),16),B=parseInt(hex.slice(5,7),16);  // blanco→color por t (intensidad)
+  return `rgb(${Math.round(255+(R-255)*t)},${Math.round(255+(G-255)*t)},${Math.round(255+(B-255)*t)})`; }
+function e7Div(v,neg,pos,hi){ if(v==null) return '#e5e5e5'; const t=Math.max(-1,Math.min(1,v/hi)); const c=t<0?neg:pos;
+  const R=parseInt(c.slice(1,3),16),G=parseInt(c.slice(3,5),16),B=parseInt(c.slice(5,7),16), w=Math.abs(t);
+  return `rgb(${Math.round(242+(R-242)*w)},${Math.round(243+(G-243)*w)},${Math.round(245+(B-245)*w)})`; }
+function e7Col(f){ const d=e7Unit(f); if(!d) return '#e5e5e5'; const isRec=effGran()==='poligono';
+  if(colorby==='e7duro'){ if(!d.dom) return '#cbced4'; const base=BLOQCOL[E7BL[d.dom]]||'#8a8f98';
+    return e7White(base, 0.35+0.65*Math.max(0,Math.min(1,((d.piso||0)-0.30)/0.45))); }   // hue = bloque, intensidad = piso
+  if(colorby==='e7tip'){ const t=isRec?d.tip:e7ComTip(d); return E7TIPCOL[t]||'#cbced4'; }
+  if(colorby==='e7realin') return e7Div(d.realin,'#DB8076','#8297DE',0.30);               // + = se derechiza (azul) · − = se izquierdiza (rojo)
+  if(colorby==='e7prima'){ const p=d.prima; return (!p||p.prima==null)?'#cbced4':e7Div(p.prima,'#C55A11','#2c6e49',0.40); }
+  return '#e5e5e5'; }
+function e7Popup(f){ const d=e7Unit(f); const isRec=effGran()==='poligono';
+  const pct=x=>x==null?'—':Math.round(x*100)+'%', spp=x=>x==null?'—':(x>=0?'+':'')+Math.round(x*100)+'pp';
+  if(colorby==='e7prima'){ if(isRec) return '<span style="color:#888">Prima solo a nivel comuna</span>';
+    const p=d&&d.prima; if(!p) return '<span style="color:#888">alcalde sin clasificar (independiente)</span>';
+    return `Alcalde: <b>${p.cand}</b> (${E7BL[p.b3]||p.b3})<br>Votación <b>${pct(p.share)}</b> · piso del bloque ${pct(p.piso)}<br>Prima personal: <b>${spp(p.prima)}</b>`; }
+  if(!d||(!d.dom&&isRec)) return '<span style="color:#888">datos insuficientes (&lt;4 elecciones)</span>';
+  let h=`Bloque dominante: <b>${E7BL[d.dom]||'—'}</b> · piso <b>${pct(d.piso)}</b><br>`;
+  h+=`Realineamiento 2021→2025: <b>${spp(d.realin)}</b> ${d.realin>0?'(a la derecha)':d.realin<0?'(a la izquierda)':''}<br>`;
+  h+= isRec ? `Tipología: <b>${d.tip}</b>${d.ancla?'':' · sin ancla 2021'}` : `Tipología dominante: <b>${e7ComTip(d)||'—'}</b> · ${d.nrec} recintos`;
+  return h; }
+function e7Leg(){
+  if(colorby==='e7duro') return '<span class="lg lg-title">Voto duro · bloque + piso (2021-2025)</span>'+
+    Object.keys(E7BL).map(k=>`<span class="lg"><i style="background:${BLOQCOL[E7BL[k]]}"></i>${E7BL[k]}</span>`).join('')+
+    '<span class="lg lg-dir">más intenso = piso más alto</span>';
+  if(colorby==='e7tip') return '<span class="lg lg-title">Tipología del voto</span>'+
+    ['Bastión','Basculante','Bisagra','Mixto','Datos insuficientes'].map(k=>`<span class="lg"><i style="background:${E7TIPCOL[k]}"></i>${k}</span>`).join('');
+  if(colorby==='e7realin') return '<span class="lg lg-title">Realineamiento 2021→2025</span>'+
+    '<span class="lg"><i style="background:#DB8076"></i>← se izquierdiza</span><span class="lg"><i style="background:#f2f3f5;border:1px solid #ccc"></i>estable</span><span class="lg"><i style="background:#8297DE"></i>se derechiza →</span>';
+  return '<span class="lg lg-title">Prima del alcalde electo (2024)</span>'+
+    '<span class="lg"><i style="background:#C55A11"></i>bajo su base</span><span class="lg"><i style="background:#f2f3f5;border:1px solid #ccc"></i>≈ base</span><span class="lg"><i style="background:#2c6e49"></i>arrastre personal</span><span class="lg lg-dir">solo comuna</span>';
+}
 
 // ===== VISTAS DEL TRASPASO: Ganador · Transferencia (coropleta que muta 1ª→2ª) · Aumento % =====
 let traspView='winner', transferT=1; let TRANSFERMAP={}, TRANSFERFIN=null;
@@ -660,10 +707,12 @@ function renderT(){
   const isRecon=f=>{ const id=String(f.properties[idp]); return data[id]==null && RECON[id]!=null; };
   const hasData=f=>dataOf(f)!=null;
   layer=L.geoJSON({type:'FeatureCollection',features:feats},{ renderer:canvas,
-    style:f=>{ const d=dataOf(f); if(!d) return {weight:0,opacity:0,fillOpacity:0}; const rec=isRecon(f);
+    style:f=>{ if(colorby&&colorby.indexOf('e7')===0){ return {color:geo==='local'?'#fff':'#9aa0a8',weight:w0,opacity:1,fillColor:e7Col(f),fillOpacity:.82}; }  // E7: siempre visible, color por métrica estructural
+      const d=dataOf(f); if(!d) return {weight:0,opacity:0,fillOpacity:0}; const rec=isRecon(f);
       return {color:'#fff',weight:rec?0:w0,opacity:rec?0:1,fillColor:barsMode?'#eef1f5':colorFeat(d,f),fillOpacity:barsMode?.5:(rec?.5:.82)}; },
-    onEachFeature:(f,l)=>{ if(!hasData(f)) return;
-      if(isRecon(f)){ l.bindPopup('<b>Área reconstruida por cercanía</b><br>Sin recinto propio en '+elecInfo(elecSel).year+'; muestra el resultado del recinto activo más cercano (estimación).'); return; }
+    onEachFeature:(f,l)=>{ const isE7=colorby&&colorby.indexOf('e7')===0;
+      if(!isE7 && !hasData(f)) return;
+      if(!isE7 && isRecon(f)){ l.bindPopup('<b>Área reconstruida por cercanía</b><br>Sin recinto propio en '+elecInfo(elecSel).year+'; muestra el resultado del recinto activo más cercano (estimación).'); return; }
       l.bindPopup(popupSub(f,geo,idp,data));
       l.on('mouseover',()=>l.setStyle({weight:2})); l.on('mouseout',()=>l.setStyle({weight:w0})); }
   }).addTo(map);
@@ -1107,6 +1156,7 @@ function renderCandTop(){ // top 10 comunas por % y por votos totales del candid
 }
 function popupSub(f,geo,idp,data){ const u=data[String(f.properties[idp])]; const w=u&&winnerOf(u);
   let h=`<b>${subName(f,geo)}</b><br>`;
+  if(colorby&&colorby.indexOf('e7')===0){ return h+e7Popup(f); }
   if(colorby==='swing'||colorby==='split'){ const dv=DIVMAP[+f.properties.cut];
     h+=(dv==null?'<span style="color:#888">sin comparable</span>':`${colorby==='swing'?'Swing':'Voto cruzado'}: <b>${dv>0?'+':''}${dv.toFixed(1)} pp</b> ${dv>0?'→ derecha':dv<0?'→ izquierda':''}<br><span style="color:#888">vs ${DIVREF?elecInfo(DIVREF).label+' '+elecInfo(DIVREF).year:'—'}</span>`)+'<br>'; }
   if(colorby==='consist'){ const cv=CONSIST[String(idOf(f))]; h+=(cv==null?'<span style="color:#888">sin comparable</span>':(cv?'<b>Mismo bloque</b> ganó 1ª y 2ª vuelta':'<b>Cambió de bloque</b> entre vueltas'))+'<br>'; }
@@ -1141,6 +1191,7 @@ function colLabel(){ if(colorby==='winner') return 'ganador'; if(colorby==='part
   if(colorby==='split') return 'voto cruzado vs '+(DIVREF?cap(elecInfo(DIVREF).label):'—');
   if(colorby==='traspaso') return 'ganador (fondo) — traspaso en el panel';
   if(colorby==='conf') return 'confiabilidad geográfica (padrón vs residentes)';
+  if(colorby&&colorby.indexOf('e7')===0) return ({e7duro:'voto duro (bloque · piso 2021-2025)',e7tip:'tipología del voto',e7realin:'realineamiento 2021→2025',e7prima:'prima del alcalde electo'})[colorby]||'estructura del voto';
   return '% '+cap(TERR.candidatos[+colorby.slice(5)].nombre); }
 function renderResumen(geo,n){ const o=(KPI[level]||{})[unitId]||{};
   let extra='';
@@ -1162,6 +1213,7 @@ function renderResumen(geo,n){ const o=(KPI[level]||{})[unitId]||{};
     `<div class="r-el">${TERR.meta.label} ${elecInfo(elecSel).year}</div>`+
     `${n} ${granName(geo)} · coloreado por <b>${colLabel()}</b>.`+extra; }
 function renderLeg(){ const el=document.getElementById('leg2');
+  if(colorby&&colorby.indexOf('e7')===0){ el.innerHTML=e7Leg(); return; }
   if(colorby==='consist'){ el.innerHTML=`<span class="lg lg-title">Consistencia 1ª/2ª vuelta</span>`+
       `<span class="lg"><i style="background:#3F8E86"></i>mismo bloque</span><span class="lg"><i style="background:#C55A11"></i>cambió de bloque</span>`; return; }
   if(colorby==='swing'||colorby==='split'){ const m=(seqRange&&seqRange.abs)||10;
