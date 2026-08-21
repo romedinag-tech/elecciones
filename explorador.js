@@ -1,5 +1,5 @@
 // Explorador territorial electoral — workbench: nivel → unidad → módulos. Elección elegida DENTRO de cada módulo.
-const V='92';
+const V='93';
 // ---- tema claro/oscuro ----
 try{ if(localStorage.getItem('elec_theme')==='dark') document.documentElement.setAttribute('data-theme','dark'); }catch(e){}
 function isDark(){ return document.documentElement.getAttribute('data-theme')==='dark'; }
@@ -360,6 +360,8 @@ function openElecPanel(){ const p=document.getElementById('elecpanel');
     yr.innerHTML=`<div class="ep-y">${y}</div>`; const wrap=document.createElement('div'); wrap.className='ep-els';
     CAT[y].forEach(fam=> fam.elecciones.forEach(el=>{ const b=document.createElement('button'); b.textContent=el.label; b.title=fam.familia;
       b.className=el.id===elecSel?'on':''; b.onclick=()=>{ elecSel=el.id; colorby='winner'; p.style.display='none';
+        frameToOffice(elecSel);                                      // el nivel geográfico del cargo se marca solo, conservando el lugar
+        buildLevels(); buildMenu(); markUnit(unitId);                // refresca selector de nivel, menú de unidades y la unidad marcada
         const _g=officeGran(elecSel); if(_g) granul=clampGran(_g);   // granularidad natural del cargo, acotada al alcance (gob→región nacional / comuna dentro de una región)
         document.getElementById('elecBtn').textContent=elecInfo(elecSel).label+' · '+y;
         loadTerr(elecSel).then(()=>{ buildCandsel(); buildGranul(); buildIndics(); renderT(); }); }; wrap.appendChild(b); }));
@@ -463,6 +465,21 @@ function clampGran(g){
   if(g==='distrito' && !(level==='nacional'||level==='region')) g='comuna';
   if((g==='comuna'||g==='distrito'||g==='region') && level==='comuna') g=hasLocal()?'poligono':'comuna';
   return g; }
+
+// ── Auto-encuadre por cargo (decisión Rodrigo 2026-08-20): al elegir una elección el NIVEL geográfico se
+//    marca SOLO según el cargo, CONSERVANDO EL LUGAR (cada comuna conoce su región/distrito/circunscripción
+//    vía CUTMAP). Desde una comuna, sube al encuadre natural del cargo (senador→su circunscripción,
+//    gobernador→su región, diputado→su distrito, alcalde→se queda); presidencial/plebiscito/primarias→país.
+//    Desde un contenedor (región/circ/distrito) se conserva el nivel y la granularidad del cargo dibuja sus sub-unidades.
+const OFFICE_LEVEL={presidencial:'nacional',plebiscito:'nacional',primarias:'nacional',
+  gobernadores:'region',senadores:'circ_senatorial',diputados:'distrito',
+  convencion:'distrito',consejo:'distrito',alcaldes:'comuna',concejales:'comuna',cores:'comuna'};
+function ancestorOf(cut,tl){ const c=CUTMAP[cut]; if(!c) return null; const key={region:'reg',distrito:'dist',circ_senatorial:'circ'}[tl]; const v=key?c[key]:null; return v==null?null:String(v); }
+function frameToOffice(e){ const tl=OFFICE_LEVEL[officeOf(e)]; if(!tl) return;
+  if(tl==='nacional'){ level='nacional'; unitId='CL'; return; }
+  if(level==='comuna' && tl!=='comuna'){ const nu=ancestorOf(unitId,tl); if(nu){ level=tl; unitId=nu; } } }
+function markUnit(id){ document.querySelectorAll('#menu button.on').forEach(b=>b.classList.remove('on'));
+  const b=document.querySelector(`#menu .u-btn[data-id="${id}"]`); if(b){ b.classList.add('on'); const rg=b.closest('.rn-region'); if(rg) rg.classList.add('open'); } }
 
 function unitCuts(){ if(level==='comuna') return new Set([+unitId]); if(level==='nacional') return null;
   return new Set(Object.entries(CUTMAP).filter(([c,x])=> level==='region'?x.reg==unitId:level==='distrito'?x.dist==unitId:
