@@ -1,7 +1,7 @@
 // M1 — Tendencia política por distrito
 const map = L.map('map', { preferCanvas:true, minZoom:3 }).setView([-35.5,-71.3], 5);
-L.tileLayer('https://{s}.basemaps.cartocdn.com/light_nolabels/{z}/{x}/{y}{r}.png',
-  { attribution:'&copy; OpenStreetMap &copy; CARTO', subdomains:'abcd', maxZoom:19 }).addTo(map);
+L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Light_Gray_Base/MapServer/tile/{z}/{y}/{x}',
+  { attribution:'Tiles &copy; Esri &copy; OpenStreetMap', maxZoom:19, maxNativeZoom:16 }).addTo(map);
 
 // escala divergente por eje (izq→der), centrada en 5.0
 const BINS=[[0,4.25,'#2166ac'],[4.25,4.75,'#67a9cf'],[4.75,5.25,'#f7f7f7'],[5.25,5.75,'#fddbc7'],[5.75,6.25,'#ef8a62'],[6.25,10,'#b2182b']];

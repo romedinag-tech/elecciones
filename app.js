@@ -1,7 +1,7 @@
 // Visor de recintos de votación de Chile — v1
 const map = L.map('map', { preferCanvas:true, minZoom:3 }).setView([-35.5,-71.3], 5);
-L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
-  attribution:'&copy; OpenStreetMap &copy; CARTO', subdomains:'abcd', maxZoom:19
+L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Light_Gray_Base/MapServer/tile/{z}/{y}/{x}', {
+  attribution:'Tiles &copy; Esri &copy; OpenStreetMap', maxZoom:19, maxNativeZoom:16
 }).addTo(map);
 
 const BINS = [0, 2000, 5000, 10000, 20000, 40000];

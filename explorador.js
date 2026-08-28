@@ -1,10 +1,11 @@
 // Explorador territorial electoral — workbench: nivel → unidad → módulos. Elección elegida DENTRO de cada módulo.
-const V='94';
+const V='95';
 // ---- tema claro/oscuro ----
 try{ if(localStorage.getItem('elec_theme')==='dark') document.documentElement.setAttribute('data-theme','dark'); }catch(e){}
 function isDark(){ return document.documentElement.getAttribute('data-theme')==='dark'; }
-const MAP_LIGHT='https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png';
-const MAP_DARK='https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png';
+// Fondo Esri gray canvas (sin API key; CARTO pasó a exigir llave y devolvía teselas "API KEY REQUIRED"). Esri usa {z}/{y}/{x} y llega a z16.
+const MAP_LIGHT='https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Light_Gray_Base/MapServer/tile/{z}/{y}/{x}';
+const MAP_DARK='https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Base/MapServer/tile/{z}/{y}/{x}';
 let mapBaseLayer=null;
 function setTheme(dark){
   document.documentElement.setAttribute('data-theme',dark?'dark':'light');
@@ -328,11 +329,11 @@ function ensureMap(){ if(map) return;
   map=L.map('map',{preferCanvas:true,minZoom:3}).setView([-33.55,-70.66],9);  // primera imagen: cuenca de Santiago
   // capas base: Mapa (CARTO) / Satélite (Esri World Imagery) — mismo montaje que el visor de uso de suelo
   const claro=L.tileLayer(isDark()?MAP_DARK:MAP_LIGHT,
-    {attribution:'&copy; OpenStreetMap &copy; CARTO',subdomains:'abcd',maxZoom:19}); mapBaseLayer=claro;
+    {attribution:'Tiles &copy; Esri &copy; OpenStreetMap',maxZoom:19,maxNativeZoom:16}); mapBaseLayer=claro;
   const sat=L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
     {attribution:'Imagery &copy; Esri, Maxar, Earthstar Geographics',maxZoom:19});
-  const labels=L.tileLayer('https://{s}.basemaps.cartocdn.com/light_only_labels/{z}/{x}/{y}{r}.png',
-    {subdomains:'abcd',maxZoom:19,pane:'shadowPane'});  // etiquetas de calles/lugares sobre satélite
+  const labels=L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}',
+    {attribution:'Labels &copy; Esri',maxZoom:19,maxNativeZoom:16,pane:'shadowPane'});  // etiquetas de calles/lugares sobre satélite
   claro.addTo(map);
   L.control.layers({'Mapa':claro,'Satélite':sat},null,{position:'topright',collapsed:true}).addTo(map);
   map.on('baselayerchange',e=>{ if(e.name==='Satélite'){ labels.addTo(map); } else { map.removeLayer(labels); } });
