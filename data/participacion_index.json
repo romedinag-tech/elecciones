@@ -51,13 +51,13 @@
 "label": "2017-11_diputados",
 "padron": "2017-11",
 "obl": false,
-"glob": 46.7
+"glob": 46.6
 },
 "2017-11_presidencial_1v": {
 "label": "2017-11_presidencial_1v",
 "padron": "2017-11",
 "obl": false,
-"glob": 46.7
+"glob": 46.6
 },
 "2017-11_senadores": {
 "label": "2017-11_senadores",
@@ -165,7 +165,7 @@
 "label": "2024-11_gobernadores_2v",
 "padron": "2024-10",
 "obl": true,
-"glob": 83.4
+"glob": 83.3
 },
 "2025-06_primarias": {
 "label": "2025-06_primarias",
