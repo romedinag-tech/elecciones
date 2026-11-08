@@ -1,5 +1,5 @@
 // Explorador territorial electoral — workbench: nivel → unidad → módulos. Elección elegida DENTRO de cada módulo.
-const V='102';
+const V='103';
 // ---- tema claro/oscuro ----
 try{ if(localStorage.getItem('elec_theme')==='dark') document.documentElement.setAttribute('data-theme','dark'); }catch(e){}
 function isDark(){ return document.documentElement.getAttribute('data-theme')==='dark'; }
@@ -921,7 +921,7 @@ function demoCard(D,ms,s){ const F=unitFrac(ms,D.frac);
   // 1) posterior bayesiano espacial precomputado (marginal con IC) — reemplaza King
   const by=crossBayes();
   if(by==='loading') return `<div class="mth-card"><div class="sz-h">${D.lbl}</div><div class="sz-hint">Cargando estimación bayesiana…</div></div>`;
-  if(by && by.ni) return `<div class="mth-card"><div class="sz-h">${D.lbl}</div><div class="mth-unrel">${NI_TXT}</div></div>`;
+  if(by && by.ni) return `<div class="mth-card"><div class="sz-h">${D.lbl}</div><div class="mth-unrel">${niTxt(by)}</div></div>`;
   if(by && BYMAP[D.k] && by[BYMAP[D.k].d]) return mCardB(D,F,verb, by[BYMAP[D.k].d], BYMAP[D.k].a, BYMAP[D.k].b);
   if(by && by!=='loading' && BYMAP[D.k] && !by[BYMAP[D.k].d])  // hay estimación bayesiana pero esta elección no trae esa dimensión (p.ej. nacionalidad en senadores/diputados vía TRICEL)
     return `<div class="mth-card"><div class="sz-h">${D.lbl}</div><div class="mth-unrel">No disponible para esta elección (la descripción de votantes no incluye ${D.k==='ext'?'nacionalidad':D.lbl.toLowerCase()}).</div></div>`;
@@ -971,7 +971,12 @@ function addCross(ms){ const P=ms.map(m=>({fm:m.muj/m.t, fj:m.ed[0]/m.t, y:mesaO
   return [[0,0],[1,0],[0,1],[1,1]].map(([g,a])=>iL(L(gm[g])+L(am[a])-L(o))*100);  // Mj,Hj,Mm,Hm
 }
 // ===== cruce BAYESIANO (EI espacial precomputado) =====
-const NI_TXT='No identificable con estos datos: esta comuna tiene un solo local, y un local no permite separar el voto por sexo o edad.';
+const NI_TXT={un_local:'No identificable con estos datos: esta comuna tiene un solo local, y un local no permite separar el voto por sexo o edad.',
+  una_mesa:'No identificable con estos datos: esta comuna tiene una sola mesa, y una mesa no permite separar el voto por sexo o edad.',
+  una_unidad_v1:'No identificable por ahora: en la estimación vigente esta comuna pudo quedar representada por un solo local, y eso no permite separar el voto por sexo o edad. Está en re-estimación.',
+  cadenas:'No identificable con estos datos: el modelo no llega a una sola respuesta para este candidato en esta comuna, así que no se muestra una cifra.',
+  convergencia:'No identificable con estos datos: el modelo no llega a una sola respuesta para este candidato en esta comuna, así que no se muestra una cifra.'};
+const niTxt=by=>NI_TXT[by.ni]||NI_TXT.cadenas;
 function ensureCrossBayes(e){ if(CROSSB[e]!==undefined) return Promise.resolve();
   return fetch('data/cross/'+e+'.json?v='+V).then(r=>r.ok?r.json():null).then(d=>{CROSSB[e]=d;}).catch(()=>{CROSSB[e]=null;}); }
 function crossBayes(){ const e=elecSel; if(!CROSSIDX[e]) return null;
@@ -1025,7 +1030,7 @@ function crossHTML(ms,s){
   // 1) posterior bayesiano espacial (precomputado) si existe para esta elección/unidad
   const by=crossBayes();
   if(by==='loading') return '<div class="sz-hint">Cargando estimación bayesiana…</div>';
-  if(by&&by.ni) return `<div class="sz-hint">${NI_TXT}</div>`;
+  if(by&&by.ni) return `<div class="sz-hint">${niTxt(by)}</div>`;
   if(by){ const bc=by.cells||by; return crossGridB(`${verb} por género × edad — <b>estimación bayesiana</b>`,
     {'Mujeres':[cellObj(bc,0),cellObj(bc,2)],'Hombres':[cellObj(bc,1),cellObj(bc,3)]},
     '<b>Inferencia ecológica bayesiana espacial</b> (NUTS + prior de vecindad ICAR): reconcilia con el % real y propaga incertidumbre. Celda <b>desaturada</b> = intervalo de credibilidad ancho (poca certeza); <b>±N</b> = medio ancho del IC90.'); }
