@@ -1,5 +1,5 @@
 // Explorador territorial electoral — workbench: nivel → unidad → módulos. Elección elegida DENTRO de cada módulo.
-const V='101';
+const V='102';
 // ---- tema claro/oscuro ----
 try{ if(localStorage.getItem('elec_theme')==='dark') document.documentElement.setAttribute('data-theme','dark'); }catch(e){}
 function isDark(){ return document.documentElement.getAttribute('data-theme')==='dark'; }
@@ -921,6 +921,7 @@ function demoCard(D,ms,s){ const F=unitFrac(ms,D.frac);
   // 1) posterior bayesiano espacial precomputado (marginal con IC) — reemplaza King
   const by=crossBayes();
   if(by==='loading') return `<div class="mth-card"><div class="sz-h">${D.lbl}</div><div class="sz-hint">Cargando estimación bayesiana…</div></div>`;
+  if(by && by.ni) return `<div class="mth-card"><div class="sz-h">${D.lbl}</div><div class="mth-unrel">${NI_TXT}</div></div>`;
   if(by && BYMAP[D.k] && by[BYMAP[D.k].d]) return mCardB(D,F,verb, by[BYMAP[D.k].d], BYMAP[D.k].a, BYMAP[D.k].b);
   if(by && by!=='loading' && BYMAP[D.k] && !by[BYMAP[D.k].d])  // hay estimación bayesiana pero esta elección no trae esa dimensión (p.ej. nacionalidad en senadores/diputados vía TRICEL)
     return `<div class="mth-card"><div class="sz-h">${D.lbl}</div><div class="mth-unrel">No disponible para esta elección (la descripción de votantes no incluye ${D.k==='ext'?'nacionalidad':D.lbl.toLowerCase()}).</div></div>`;
@@ -937,12 +938,13 @@ function renderMethods(){ const box=document.getElementById('terrside');
     const ms=unitMesas(); const s=((SESGOS[level]||{})[unitId]||{})[elecSel];
     const ml=colorby==='part'?'la participación':colorby==='nulos'?'los blancos+nulos':'el voto de '+cap((TERR.candidatos[+colorby.slice(5)]||{}).nombre||'');
     const byData = colorby.startsWith('cand:') ? crossBayes() : null;  // posterior bayesiano de esta unidad (null / 'loading' / datos)
+    const byNi = colorby!=='part'?crossBayes():null; const esNi = !!(byNi&&byNi.ni);  // comuna sin desglose identificable (también en blancos+nulos)
     const usesBayes = !!byData && byData!=='loading';                  // las cartas usan el bayesiano (regulariza a King)
     if(colorby!=='part' && !ms.length && !usesBayes && !(colorby.startsWith('cand:')&&CROSSIDX[elecSel])){ box.innerHTML=`<div class="mth-pad"><div class="sz-hint">Sin datos de mesa por candidato para esta elección.</div></div>`; return; }
     let h=`<div class="mth-pad"><div class="sz-title">Sesgos de ${ml}`.replace('Sesgos de el ','Sesgos del ')+`</div>`+
-      `<div class="mth-subt">${colorby==='part'?'Tasa <b>observada</b> por grupo (padrón × votantes)':(usesBayes?('Estimación <b>bayesiana espacial</b>'+(ms.length?' · modelo por comuna (regulariza a King)':' · padrón por local (sin mesa)')):('Inferencia ecológica a <b>nivel de mesa</b> (King) · '+ms.length+' mesas'))}</div><div class="mth-row">`;
+      `<div class="mth-subt">${colorby==='part'?'Tasa <b>observada</b> por grupo (padrón × votantes)':(esNi?'Sin desglose en esta comuna':usesBayes?('Estimación <b>bayesiana espacial</b>'+(ms.length?' · modelo por comuna (regulariza a King)':' · padrón por local (sin mesa)')):('Inferencia ecológica a <b>nivel de mesa</b> (King) · '+ms.length+' mesas'))}</div><div class="mth-row">`;
     DEMOS.forEach(D=>{ h+=demoCard(D,ms,s); });
-    h+=`</div>`+ (colorby.startsWith('cand:')?renderCandTop():'') +`<div class="sz-note">${colorby==='part'?'<b>Observado</b>: dato oficial de quiénes votaron por grupo (SERVEL).':(usesBayes?'<b>Estimación bayesiana espacial</b>: inferencia ecológica con prior espacial y cotas de credibilidad — regulariza la falacia ecológica de King (que tiende a exagerar los sesgos). Educación no está en el padrón.':'<b>King</b>: inferencia ecológica a nivel de mesa (tomografía + MLE, cotas Duncan-Davis). <b>Goodman</b>/<b>LS</b>: contraste. Género/edad/nacionalidad salen del padrón por mesa.')} Falacia ecológica: estima grupos, no personas.</div></div>`;
+    h+=`</div>`+ (colorby.startsWith('cand:')?renderCandTop():'') +`<div class="sz-note">${colorby==='part'?'<b>Observado</b>: dato oficial de quiénes votaron por grupo (SERVEL).':(esNi?'':usesBayes?'<b>Estimación bayesiana espacial</b>: inferencia ecológica con prior espacial y cotas de credibilidad — regulariza la falacia ecológica de King (que tiende a exagerar los sesgos). Educación no está en el padrón.':'<b>King</b>: inferencia ecológica a nivel de mesa (tomografía + MLE, cotas Duncan-Davis). <b>Goodman</b>/<b>LS</b>: contraste. Género/edad/nacionalidad salen del padrón por mesa.')} Falacia ecológica: estima grupos, no personas.</div></div>`;
     box.innerHTML=h; renderCross(ms,s);
   });
 }
@@ -969,6 +971,7 @@ function addCross(ms){ const P=ms.map(m=>({fm:m.muj/m.t, fj:m.ed[0]/m.t, y:mesaO
   return [[0,0],[1,0],[0,1],[1,1]].map(([g,a])=>iL(L(gm[g])+L(am[a])-L(o))*100);  // Mj,Hj,Mm,Hm
 }
 // ===== cruce BAYESIANO (EI espacial precomputado) =====
+const NI_TXT='No identificable con estos datos: esta comuna tiene un solo local, y un local no permite separar el voto por sexo o edad.';
 function ensureCrossBayes(e){ if(CROSSB[e]!==undefined) return Promise.resolve();
   return fetch('data/cross/'+e+'.json?v='+V).then(r=>r.ok?r.json():null).then(d=>{CROSSB[e]=d;}).catch(()=>{CROSSB[e]=null;}); }
 function crossBayes(){ const e=elecSel; if(!CROSSIDX[e]) return null;
@@ -1022,6 +1025,7 @@ function crossHTML(ms,s){
   // 1) posterior bayesiano espacial (precomputado) si existe para esta elección/unidad
   const by=crossBayes();
   if(by==='loading') return '<div class="sz-hint">Cargando estimación bayesiana…</div>';
+  if(by&&by.ni) return `<div class="sz-hint">${NI_TXT}</div>`;
   if(by){ const bc=by.cells||by; return crossGridB(`${verb} por género × edad — <b>estimación bayesiana</b>`,
     {'Mujeres':[cellObj(bc,0),cellObj(bc,2)],'Hombres':[cellObj(bc,1),cellObj(bc,3)]},
     '<b>Inferencia ecológica bayesiana espacial</b> (NUTS + prior de vecindad ICAR): reconcilia con el % real y propaga incertidumbre. Celda <b>desaturada</b> = intervalo de credibilidad ancho (poca certeza); <b>±N</b> = medio ancho del IC90.'); }
