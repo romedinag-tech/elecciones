@@ -1,5 +1,5 @@
 // Explorador territorial electoral — workbench: nivel → unidad → módulos. Elección elegida DENTRO de cada módulo.
-const V='104';
+const V='105';
 // ---- tema claro/oscuro ----
 try{ if(localStorage.getItem('elec_theme')==='dark') document.documentElement.setAttribute('data-theme','dark'); }catch(e){}
 function isDark(){ return document.documentElement.getAttribute('data-theme')==='dark'; }
@@ -874,6 +874,8 @@ function ensureMesa(e){ if(MESA[e]) return Promise.resolve();
   return fetch('data/mesa/'+e+'.json?v='+V).then(r=>r.ok?r.json():null).then(d=>{MESA[e]=d||[];}).catch(()=>{MESA[e]=[];}); }
 const DEMOS=[{k:'muj',lbl:'Género',A:'Mujeres',B:'Hombres',frac:m=>m.t?m.muj/m.t:null,m3:s=>s&&s.sexo?[s.sexo.M,s.sexo.H]:null},
   {k:'jov',lbl:'Edad (jóvenes)',A:'Jóvenes 18–24',B:'25+ años',frac:m=>m.t?m.ed[0]/m.t:null,
+    // el cruce bayesiano estima joven = 18–29 (build_cross_bayes.JOVEN): rótulo y peso del padrón con ese corte [C-11]
+    bayes:{A:'Jóvenes 18–29',B:'30+ años',frac:m=>(m.t&&m.j!=null)?m.j/m.t:null},
     m3:s=>s&&s.edad?[s.edad['18-24'],(s.edad['25-44']+s.edad['45-59']+s.edad['60+'])/3]:null},
   {k:'ext',lbl:'Nacionalidad',A:'Extranjeros',B:'Chilenos',frac:m=>m.t?m.ext/m.t:null,m3:s=>s&&s.nac?[s.nac.E,s.nac.C]:null}];
 function mesaOutcome(m){ const valid=Object.values(m.v).reduce((s,v)=>s+v,0);
@@ -922,7 +924,8 @@ function demoCard(D,ms,s){ const F=unitFrac(ms,D.frac);
   const by=crossBayes();
   if(by==='loading') return `<div class="mth-card"><div class="sz-h">${D.lbl}</div><div class="sz-hint">Cargando estimación bayesiana…</div></div>`;
   if(by && by.ni) return `<div class="mth-card"><div class="sz-h">${D.lbl}</div><div class="mth-unrel">${niTxt(by)}</div></div>`;
-  if(by && BYMAP[D.k] && by[BYMAP[D.k].d]) return mCardB(D,F,verb, by[BYMAP[D.k].d], BYMAP[D.k].a, BYMAP[D.k].b);
+  if(by && BYMAP[D.k] && by[BYMAP[D.k].d]){ const DB=D.bayes?{...D,...D.bayes}:D;
+    return mCardB(DB, D.bayes?unitFrac(ms,D.bayes.frac):F, verb, by[BYMAP[D.k].d], BYMAP[D.k].a, BYMAP[D.k].b); }
   if(by && by!=='loading' && BYMAP[D.k] && !by[BYMAP[D.k].d])  // hay estimación bayesiana pero esta elección no trae esa dimensión (p.ej. nacionalidad en senadores/diputados vía TRICEL)
     return `<div class="mth-card"><div class="sz-h">${D.lbl}</div><div class="mth-unrel">No disponible para esta elección (la descripción de votantes no incluye ${D.k==='ext'?'nacionalidad':D.lbl.toLowerCase()}).</div></div>`;
   const pts=ms.map(m=>({x:D.frac(m),y:mesaOutcome(m),w:m.t})).filter(p=>p.x!=null&&isFinite(p.x)&&p.y!=null);
@@ -991,11 +994,11 @@ function crossBayes(){ const e=elecSel; if(!CROSSIDX[e]) return null;
 // pesos por grupo por comuna desde el microdato de mesa (marginales exactas; celdas del cruce por producto)
 function comunaWeights(cuts){ const W={}; const M=MESA[elecSel]||[];
   for(const m of M){ if(!m.t||(cuts&&!cuts.has(m.c))) continue; const o=W[m.c]||(W[m.c]={t:0,muj:0,jov:0,ext:0});
-    o.t+=m.t; o.muj+=m.muj||0; o.jov+=(m.ed&&m.ed[0])||0; o.ext+=m.ext||0; } return W; }
+    o.t+=m.t; o.muj+=m.muj||0; o.jov+=m.j||0; o.jmuj=(o.jmuj||0)+(m.jMuj||0); o.ext+=m.ext||0; } return W; }  // jov = 18–29, el corte del modelo [C-11]
 // agrega las posteriores COMUNALES (media+IC) a un alcance multi-comuna (metro/distrito/circ), ponderando por votantes del grupo
 function crossBayesAgg(cuts,key,D){ const W=comunaWeights(cuts); if(!Object.keys(W).length) return null;
   const Z=1.645; const dims=['cells','sexo','edad','nac'];
-  const gw=o=>({cells:[o.muj*o.jov/o.t,(o.t-o.muj)*o.jov/o.t,o.muj*(o.t-o.jov)/o.t,(o.t-o.muj)*(o.t-o.jov)/o.t],
+  const gw=o=>({cells:[o.jmuj,o.jov-o.jmuj,o.muj-o.jmuj,o.t-o.muj-o.jov+o.jmuj],  // votantes exactos por celda (antes: producto de marginales)
     sexo:[o.muj,o.t-o.muj], edad:[o.jov,o.t-o.jov], nac:[o.ext,o.t-o.ext]});
   const out={}; let any=false;
   for(const dim of dims){ const n=dim==='cells'?4:2; const sm=Array(n).fill(0),sw=Array(n).fill(0),sv=Array(n).fill(0);
@@ -1012,7 +1015,7 @@ function hex2rgb(h){ h=h.replace('#',''); return [parseInt(h.slice(0,2),16),pars
 function mixHex(a,b,t){ const A=hex2rgb(a),Bc=hex2rgb(b); return '#'+A.map((x,i)=>Math.round(x+(Bc[i]-x)*t).toString(16).padStart(2,'0')).join(''); }
 function desatCol(v,width){ const k=Math.max(0,Math.min(1,(width||0)/50)); return mixHex(heatCol(v),'#e9e9e9',0.85*k); }  // IC ancho → gris → poca certeza
 function cellObj(by,i){ return {m:by.m?by.m[i]:null, lo:by.lo?by.lo[i]:null, hi:by.hi?by.hi[i]:null}; }
-function crossGridB(title,rows,note){ const cols=['Jóvenes 18-24','25+'];
+function crossGridB(title,rows,note){ const cols=['Jóvenes 18-29','30+'];  // corte del modelo bayesiano [C-11]
   let h=`<div class="xg-title">${title}</div><table class="xg"><tr><th></th>${cols.map(a=>`<th>${a}</th>`).join('')}</tr>`;
   for(const rk in rows){ h+=`<tr><td class="xg-rk">${rk}</td>`+rows[rk].map(o=>{
       if(!o||o.m==null) return `<td class="xg-c" style="background:#eee">—</td>`;
